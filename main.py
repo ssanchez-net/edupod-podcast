@@ -4,7 +4,6 @@ import feedparser
 import edge_tts
 from google import genai
 
-# Lista de feeds RSS verificados para la extracción de noticias
 RSS_FEEDS = [
     "https://observatorio.tec.mx/feed/",
     "https://www.edsurge.com/articles_rss",
@@ -12,7 +11,6 @@ RSS_FEEDS = [
 ]
 
 def obtener_titulares():
-    """Extrae las noticias más recientes de los feeds RSS configurados."""
     noticias_acumuladas = []
     for url in RSS_FEEDS:
         try:
@@ -22,18 +20,15 @@ def obtener_titulares():
                     titulo = getattr(entry, 'title', 'Sin título')
                     resumen = getattr(entry, 'summary', getattr(entry, 'description', 'Sin resumen'))
                     noticias_acumuladas.append(f"Título: {titulo}\nResumen: {resumen}\n---")
-            else:
-                print(f"[Advertencia] No se encontraron entradas en el feed: {url}")
         except Exception as e:
-            print(f"[Error RSS] Error al leer la fuente {url}: {e}")
+            print(f"Error al leer {url}: {e}")
             
     return "\n".join(noticias_acumuladas)
 
 async def generar_guion(texto_noticias):
-    """Envía las noticias extraídas a Gemini API para redactar el guion."""
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no está configurada o está vacía en los secretos del repositorio.")
+        raise ValueError("GEMINI_API_KEY no configurada.")
         
     client = genai.Client(api_key=api_key)
     
@@ -51,45 +46,31 @@ async def generar_guion(texto_noticias):
     {texto_noticias}
     """
     
-    try:
-        # Uso del modelo flash estándar respaldado por la librería
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-        )
-        if not response.text:
-            raise ValueError("La respuesta de Gemini volvió vacía.")
-        return response.text
-    except Exception as e:
-        print(f"[Error Gemini API] Fallo al generar guion con el modelo predeterminado: {e}")
-        # Intento de respaldo con modelo 1.5-flash
-        response = client.models.generate_content(
-            model='gemini-1.5-flash',
-            contents=prompt,
-        )
-        return response.text
+    # Modelo compatible con el SDK google-genai
+    response = client.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=prompt,
+    )
+    return response.text
 
 async def texto_a_audio(texto_guion, archivo_salida="episodio_hoy.mp3"):
-    """Convierte el texto del guion en un archivo de audio MP3 usando Edge-TTS."""
     voz = "es-MX-DaliaNeural"
     comunicador = edge_tts.Communicate(texto_guion, voz)
     await comunicador.save(archivo_salida)
 
 async def ejecutar_pipeline():
-    print("[1/3] Extrayendo noticias de fuentes RSS...")
+    print("[1/3] Extrayendo noticias...")
     noticias = obtener_titulares()
     
     if not noticias:
-        print("[Alerta] No se pudieron extraer noticias RSS, utilizando noticia de respaldo...")
-        noticias = "Título: Avances en Inteligencia Artificial Aplicada a la Educación en 2026.\nResumen: Las herramientas de IA continúan transformando la personalización del aprendizaje en el aula global."
+        noticias = "Título: Innovación educativa.\nResumen: Avances en aprendizaje digital."
         
-    print("[2/3] Generando guion con Gemini API...")
+    print("[2/3] Generando guion...")
     guion = await generar_guion(noticias)
-    print(f"Guion generado con éxito ({len(guion.split())} palabras).")
     
-    print("[3/3] Sintetizando voz y generando archivo MP3...")
+    print("[3/3] Generando audio MP3...")
     await texto_a_audio(guion)
-    print("¡Proceso completado! El archivo 'episodio_hoy.mp3' ha sido generado exitosamente.")
+    print("¡Proceso completado exitosamente!")
 
 if __name__ == "__main__":
     asyncio.run(ejecutar_pipeline())
