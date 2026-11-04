@@ -21,11 +21,11 @@ RSS_FEEDS = [
 VOZ_TTS = "es-MX-DaliaNeural"
 ARCHIVO_SALIDA = "episodio_hoy.mp3"
 
-# Lista priorizada de modelos para evitar caídas por error 503
+# Modelos activos compatibles con el SDK
 MODELOS_CANDIDATOS = [
     "gemini-3.8-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash"
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest"
 ]
 
 # ---------------------------------------------------------------------------
@@ -58,7 +58,7 @@ async def obtener_titulares() -> str:
     return "\n".join(item for grupo in resultados for item in grupo)
 
 # ---------------------------------------------------------------------------
-# 2. Generación del Guion con Respaldo Multimodelo
+# 2. Generación del Guion con Respaldo de Modelos Activos
 # ---------------------------------------------------------------------------
 
 def _llamar_modelo(client: genai.Client, modelo: str, prompt: str) -> str:
@@ -109,7 +109,6 @@ async def generar_guion(texto_noticias: str) -> str:
             msg = f"{modelo} -> HTTP {e.code}: {e.message}"
             print(f"   [Aviso API] {msg}")
             errores.append(msg)
-            # Si es error de permisos o clave, no tiene caso probar más modelos
             if e.code in (401, 403):
                 break
         except Exception as e:
@@ -117,7 +116,7 @@ async def generar_guion(texto_noticias: str) -> str:
             print(f"   [Error] {msg}")
             errores.append(msg)
 
-    raise RuntimeError(f"Ningún modelo estuvo disponible para procesar la solicitud. Resumen de errores:\n" + "\n".join(errores))
+    raise RuntimeError(f"Ningún modelo estuvo disponible. Resumen de errores:\n" + "\n".join(errores))
 
 # ---------------------------------------------------------------------------
 # 3. Conversión a Audio MP3
