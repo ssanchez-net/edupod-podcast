@@ -3,6 +3,7 @@ import sys
 import html
 import re
 import asyncio
+from datetime import datetime
 import feedparser
 import edge_tts
 from google import genai
@@ -78,26 +79,48 @@ async def obtener_titulares() -> str:
     tareas = [asyncio.to_thread(_parsear_feed, url) for url in RSS_FEEDS]
     resultados = await asyncio.gather(*tareas)
     noticias_filtradas = [item for grupo in resultados for item in grupo if item]
-    return "\n".join(noticias_filtradas[:10])
+    return "\n".join(noticias_filtradas[:12])
 
 # ---------------------------------------------------------------------------
-# 3. Prompt Maestro para Podcast Conversacional (2 Voces)
+# 3. Prompt Maestro para Podcast Conversacional "Eduradar" (5 a 7 Minutos)
 # ---------------------------------------------------------------------------
 
 def construir_prompt_maestro(texto_noticias: str) -> str:
+    meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
+    ahora = datetime.now()
+    fecha_hoy = f"{ahora.day} de {meses[ahora.month - 1]} de {ahora.year}"
+
     return f"""
-Actúa como un equipo de dos periodistas y locutores de podcast sobre educación y EdTech: 
-- SOFÍA: Presentadora principal, analítica, entusiasta de la pedagogía y la inclusión.
-- ALEJANDRO: Co-presentador, enfocado en tecnología educativa, datos clave e impacto práctico en el aula.
+Actúa como un equipo de dos periodistas y locutores profesionales de podcast sobre educación y EdTech:
+- SOFÍA: Presentadora principal, analítica, apasionada por las políticas educativas, la inclusión y la pedagogía.
+- ALEJANDRO: Co-presentador, dinámico, enfocado en tecnología de aprendizaje, datos duros e impacto práctico en el aula.
 
-Tu objetivo es redactar un guion en formato de DIÁLOGO FLUIDO Y NATURAL entre Sofía y Alejandro para un episodio de 5 a 7 minutos de duración (entre 750 y 950 palabras).
+Tu objetivo es redactar un guion en formato de DIÁLOGO FLUIDO, DINÁMICO Y RIGUROSO entre Sofía y Alejandro para el podcast "Eduradar".
 
-REGLAS ESTRICTAS DE REDACCIÓN Y ESTRUCTURA:
-1. FORMATO DE ETIQUETAS: Cada intervención DEBE comenzar obligatoriamente con `SOFÍA:` o `ALEJANDRO:` en una nueva línea.
-2. CITACIÓN OFICIAL OBLIGATORIA: En cada noticia explicada, uno de los locutores DEBE mencionar de forma explícita la fuente institucional o medio de donde se extrajo la información (ej. "Según publica hoy el Observatorio del Tec de Monterrey...", "Un informe del World Economic Forum destaca...", "En una reciente publicación del portal oficial de la UNAM...").
-3. CONTEXTO COMPLETO: Incluyan detalles precisos como universidades, países, nombres de iniciativas, fechas y plataformas disponibles. No dejen información a medias.
-4. DINÁMICA CONVERSACIONAL NATURAL: Intercambien comentarios, realicen preguntas retóricas entre ustedes y agreguen breves frases de transición ("Así es, Alejandro", "Un punto clave que mencionas, Sofía"). Incluyan un llamado a la acción (CTA) orgánico al público para consultar las fuentes.
-5. RESTRICCIÓN DE FORMATO TTS: Escriban ÚNICAMENTE el diálogo con las etiquetas `SOFÍA:` y `ALEJANDRO:`. NO agreguen acotaciones entre paréntesis ni corchetes (nada de `[risas]` o `[pausa]`), ni usen formato Markdown (sin asteriscos, sin viñetas).
+TARGET DE EXTENSIÓN Y DENSIDAD (5 A 7 MINUTOS):
+- El guion DEBE contener entre 750 y 950 PALABRAS en total (equivalente a 5-7 minutos de locución a ritmo noticioso).
+- Mantén una alta densidad de datos reales sin rellenar con frases vacías.
+
+ESTRUCTURA DEL GUION:
+1. APERTURA Y BIENVENIDA DIRECTA:
+   - Inicien sin preámbulos técnicos con una bienvenida profesional y ágil.
+   - Mencionen explícitamente el nombre del podcast: "Eduradar".
+   - Mencionen de forma obligatoria la fecha de hoy: "{fecha_hoy}".
+2. DESARROLLO NOTICIOSO PERIODÍSTICO:
+   - Presenten y analicen de 3 a 5 noticias clave a partir del material fuente proporcionado.
+   - CITACIÓN OFICIAL OBLIGATORIA: Cada noticia DEBE atribuirse explícitamente a su fuente oficial (ej. "En un reciente reporte del Observatorio del Tec de Monterrey...", "Según datos divulgados por la UNAM...", "Un informe del World Economic Forum destaca...").
+   - CONTEXTO COMPLETO: Incluyan detalles precisos como universidades, países, nombres de iniciativas y plataformas disponibles. No dejen información a medias.
+   - DIÁLOGO INTERACTIVO: Sofía y Alejandro deben debatir brevemente el impacto pedagógico, realizando preguntas retóricas y aportando contexto analítico.
+3. CIERRE DINÁMICO E INTERACTIVO:
+   - Planteen una PREGUNTA PROVOCADORA Y DEBATIBLE vinculada directamente a las notas presentadas para incentivar la participación de los oyentes en los foros de las plataformas.
+   - Incluyan un llamado a la acción (Call To Action - CTA) invitando a los escuchas a seguir el podcast para mantenerse informados sobre tendencias en educación y aprendizaje.
+   - Despedida rápida a dos voces.
+
+RESTRICCIONES ESTRICTAS DE FORMATO PARA SÍNTESIS DE VOZ (TTS):
+- FORMATO DE ETIQUETAS: Cada intervención DEBE comenzar obligatoriamente con `SOFÍA:` o `ALEJANDRO:` en una nueva línea.
+- NO agregues acotaciones entre paréntesis ni corchetes (NADA de `[pausa]`, `[risas]` o `[música]`).
+- NO uses formato Markdown (SIN asteriscos, SIN negritas, SIN encabezados `#`, SIN viñetas `-`).
+- Escribe ÚNICAMENTE el texto limpio que será leído textualmente por el sintetizador.
 
 NOTICIAS FUENTE DISPONIBLES:
 {texto_noticias}
@@ -133,7 +156,7 @@ async def generar_guion(texto_noticias: str) -> str:
         print(f"   Intentando generación con modelo: {modelo}...")
         try:
             guion_texto = await asyncio.to_thread(_llamar_modelo, client, modelo, prompt)
-            print(f"   [Éxito] Guion conversacional generado con {modelo}.")
+            print(f"   [Éxito] Guion conversacional para 'Eduradar' generado con {modelo}.")
             return guion_texto
         except genai_errors.APIError as e:
             msg = f"{modelo} -> HTTP {e.code}: {e.message}"
@@ -156,7 +179,6 @@ async def texto_a_audio_dos_voces(guion_texto: str) -> None:
     lineas = guion_texto.strip().split("\n")
     bloques_audio = []
     
-    # Procesamiento y separación de intervenciones por personaje
     for idx, linea in enumerate(lineas):
         linea = linea.strip()
         if not linea:
@@ -172,11 +194,13 @@ async def texto_a_audio_dos_voces(guion_texto: str) -> None:
             voz_activa = VOZ_MASCULINA
             texto_hablado = re.sub(r"^ALEJANDRO:\s*", "", linea, flags=re.IGNORECASE)
         else:
-            # Si una línea no tiene etiqueta, hereda la voz por defecto (Sofía)
             voz_activa = VOZ_FEMENINA
             texto_hablado = linea
 
-        if texto_hablado.strip():
+        # Limpieza secundaria de formato residual
+        texto_hablado = re.sub(r"[*#_`]+", "", texto_hablado).strip()
+
+        if texto_hablado:
             temp_filename = f"fragmento_{idx}.mp3"
             comunicador = edge_tts.Communicate(texto_hablado, voz_activa)
             await comunicador.save(temp_filename)
@@ -185,13 +209,13 @@ async def texto_a_audio_dos_voces(guion_texto: str) -> None:
     if not bloques_audio:
         raise ValueError("No se pudieron extraer bloques de diálogo para sintetizar.")
 
-    # Concatena todos los fragmentos en un solo archivo final MP3
+    # Concatena los fragmentos ordenadamente en el MP3 final
     with open(ARCHIVO_SALIDA, "wb") as outfile:
         for temp_file in bloques_audio:
             if os.path.exists(temp_file):
                 with open(temp_file, "rb") as infile:
                     outfile.write(infile.read())
-                os.remove(temp_file) # Limpiar archivo temporal
+                os.remove(temp_file)
 
 # ---------------------------------------------------------------------------
 # Pipeline Principal
@@ -207,10 +231,11 @@ async def ejecutar_pipeline() -> None:
             "RESUMEN: Análisis sobre la adopción de herramientas de IA en universidades de México y Chile.\n---"
         )
 
-    print("[2/3] Generando guion conversacional (2 Voces) con Gemini API...")
+    print("[2/3] Generando guion conversacional (Eduradar - 5 a 7 min) con Gemini API...")
     guion = await generar_guion(noticias)
     palabras = len(guion.split())
-    print(f"   Guion redactado con éxito ({palabras} palabras, aprox. {round(palabras/140, 1)} minutos).")
+    minutos_estimados = round(palabras / 140, 1)
+    print(f"   Guion redactado con éxito ({palabras} palabras, aprox. {minutos_estimados} minutos de audio).")
 
     print("[3/3] Sintetizando voces neurónicas (Sofía y Alejandro) a MP3...")
     await texto_a_audio_dos_voces(guion)
