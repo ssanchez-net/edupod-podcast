@@ -2,7 +2,7 @@ import os
 import asyncio
 import feedparser
 import edge_tts
-import google.generativeai as genai
+from google import genai
 
 # Lista de feeds RSS verificados para la extracción de noticias
 RSS_FEEDS = [
@@ -17,7 +17,6 @@ def obtener_titulares():
     for url in RSS_FEEDS:
         try:
             feed = feedparser.parse(url)
-            # Extraer las 2 publicaciones más recientes de cada fuente
             for entry in feed.entries[:2]:
                 titulo = entry.get('title', 'Sin título')
                 resumen = entry.get('summary', 'Sin resumen disponible')
@@ -29,8 +28,11 @@ def obtener_titulares():
 
 async def generar_guion(texto_noticias):
     """Envía las noticias extraídas a Gemini API para redactar el guion."""
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError("La variable GEMINI_API_KEY no está configurada en los secretos de GitHub.")
+        
+    client = genai.Client(api_key=api_key)
     
     prompt = f"""
     Actúa como un locutor profesional de podcast de noticias sobre educación y tecnología educativa.
@@ -46,12 +48,14 @@ async def generar_guion(texto_noticias):
     {texto_noticias}
     """
     
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=prompt,
+    )
     return response.text
 
 async def texto_a_audio(texto_guion, archivo_salida="episodio_hoy.mp3"):
     """Convierte el texto del guion en un archivo de audio MP3 usando Edge-TTS."""
-    # Voz neuronal en español de México (Dalia)
     voz = "es-MX-DaliaNeural"
     comunicador = edge_tts.Communicate(texto_guion, voz)
     await comunicador.save(archivo_salida)
@@ -63,10 +67,10 @@ async def ejecutar_pipeline():
     if not noticias:
         raise ValueError("No se pudieron extraer noticias de las fuentes RSS.")
         
-    print("[2/3] Generando guion con Gemini 1.5 Flash...")
+    print("[2/3] Generando guion con Gemini API...")
     guion = await generar_guion(noticias)
     
-    print("[3/3] Sintonizando voz y convirtiendo a audio MP3...")
+    print("[3/3] Sintetizando voz y generando archivo MP3...")
     await texto_a_audio(guion)
     print("¡Proceso completado! El archivo 'episodio_hoy.mp3' ha sido generado exitosamente.")
 
