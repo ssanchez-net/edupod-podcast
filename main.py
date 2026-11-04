@@ -20,7 +20,13 @@ RSS_FEEDS = [
 
 VOZ_TTS = "es-MX-DaliaNeural"
 ARCHIVO_SALIDA = "episodio_hoy.mp3"
-MODELO_GEMINI = "gemini-3.8-flash"
+
+# Lista priorizada de modelos para evitar caídas por error 503
+MODELOS_CANDIDATOS = [
+    "gemini-3.8-flash",
+    "gemini-2.0-flash",
+    "gemini-1.5-flash"
+]
 
 # ---------------------------------------------------------------------------
 # 1. Extracción de Noticias RSS
@@ -52,37 +58,31 @@ async def obtener_titulares() -> str:
     return "\n".join(item for grupo in resultados for item in grupo)
 
 # ---------------------------------------------------------------------------
-# 2. Generación del Guion con Gemini API (Manejo de Reintentos de Red)
+# 2. Generación del Guion con Respaldo Multimodelo
 # ---------------------------------------------------------------------------
 
-def _llamar_gemini_robusto(api_key: str, prompt: str) -> str:
-    # Configuración de cliente con reintentos automáticos a nivel de transporte HTTP
-    client = genai.Client(
-        api_key=api_key,
-        http_options=types.HttpOptions(
-            timeout=120_000, # 120 segundos límite
-            retry_options=types.HttpRetryOptions(
-                attempts=5,          # Hasta 5 reintentos automáticos ante 503/desconexiones
-                initial_delay=3.0,
-                max_delay=20.0,
-            )
-        )
-    )
-    
+def _llamar_modelo(client: genai.Client, modelo: str, prompt: str) -> str:
     response = client.models.generate_content(
-        model=MODELO_GEMINI,
+        model=modelo,
         contents=prompt,
         config=types.GenerateContentConfig(temperature=0.7)
     )
-    
     if not response.text:
-        raise ValueError("La respuesta de la API de Gemini volvió vacía.")
+        raise ValueError("La respuesta de la API volvió vacía.")
     return response.text
 
 async def generar_guion(texto_noticias: str) -> str:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no está configurada en los secretos de GitHub.")
+
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            timeout=90_000,
+            retry_options=types.HttpRetryOptions(attempts=2, initial_delay=2.0, max_delay=10.0)
+        )
+    )
 
     prompt = f"""
     Actúa como un locutor profesional de podcast de noticias sobre educación y tecnología educativa.
@@ -98,19 +98,29 @@ async def generar_guion(texto_noticias: str) -> str:
     {texto_noticias}
     """
 
-    print(f"   Invocando API de Gemini ({MODELO_GEMINI}) con reintentos de red nativos...")
-    try:
-        guion_texto = await asyncio.to_thread(_llamar_gemini_robusto, api_key, prompt)
-        return guion_texto
-    except genai_errors.APIError as e:
-        print(f"[ERROR GEMINI API] Código HTTP {e.code} | Mensaje: {e.message}")
-        raise RuntimeError(f"Fallo persistente de API Gemini (HTTP {e.code}): {e.message}")
-    except Exception as e:
-        print(f"[ERROR DE RED / SOCKET] {type(e).__name__}: {e}")
-        raise e
+    errores = []
+    for modelo in MODELOS_CANDIDATOS:
+        print(f"   Intentando generación con modelo: {modelo}...")
+        try:
+            guion_texto = await asyncio.to_thread(_llamar_modelo, client, modelo, prompt)
+            print(f"   [Éxito] Guion generado correctamente usando {modelo}.")
+            return guion_texto
+        except genai_errors.APIError as e:
+            msg = f"{modelo} -> HTTP {e.code}: {e.message}"
+            print(f"   [Aviso API] {msg}")
+            errores.append(msg)
+            # Si es error de permisos o clave, no tiene caso probar más modelos
+            if e.code in (401, 403):
+                break
+        except Exception as e:
+            msg = f"{modelo} -> {type(e).__name__}: {e}"
+            print(f"   [Error] {msg}")
+            errores.append(msg)
+
+    raise RuntimeError(f"Ningún modelo estuvo disponible para procesar la solicitud. Resumen de errores:\n" + "\n".join(errores))
 
 # ---------------------------------------------------------------------------
-# 3. Conversión de Texto a Audio MP3
+# 3. Conversión a Audio MP3
 # ---------------------------------------------------------------------------
 
 async def texto_a_audio(texto_guion: str) -> None:
@@ -118,7 +128,7 @@ async def texto_a_audio(texto_guion: str) -> None:
     await comunicador.save(ARCHIVO_SALIDA)
 
 # ---------------------------------------------------------------------------
-# Ejecución Principal
+# Pipeline Principal
 # ---------------------------------------------------------------------------
 
 async def ejecutar_pipeline() -> None:
