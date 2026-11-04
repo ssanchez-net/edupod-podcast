@@ -21,8 +21,8 @@ RSS_FEEDS = [
 VOZ_TTS = "es-MX-DaliaNeural"
 ARCHIVO_SALIDA = "episodio_hoy.mp3"
 
-# Modelo estándar soportado por la API
-MODELO_GEMINI = "gemini-2.5-flash"
+# Modelo actualizado recomendado explícitamente por el servicio de Gemini
+MODELO_GEMINI = "gemini-3.8-flash"
 
 # ---------------------------------------------------------------------------
 # 1. Extracción de Noticias RSS
@@ -34,9 +34,9 @@ def limpiar_texto(texto: str) -> str:
     texto = html.unescape(texto)
     return re.sub(r"\s+", " ", texto).strip()[:600]
 
-async def leer_feed(url: str) -> list[str]:
+def _parsear_feed(url: str) -> list[str]:
     try:
-        feed = await asyncio.to_thread(feedparser.parse, url)
+        feed = feedparser.parse(url)
         entradas = getattr(feed, "entries", [])
         items = []
         for entry in entradas[:2]:
@@ -49,20 +49,31 @@ async def leer_feed(url: str) -> list[str]:
         return []
 
 async def obtener_titulares() -> str:
-    resultados = await asyncio.gather(*(leer_feed(u) for u in RSS_FEEDS))
+    # Ejecuta el parseo de feeds en hilos separados de forma limpia
+    tareas = [asyncio.to_thread(_parsear_feed, url) for url in RSS_FEEDS]
+    resultados = await asyncio.gather(*tareas)
     return "\n".join(item for grupo in resultados for item in grupo)
 
 # ---------------------------------------------------------------------------
-# 2. Generación del Guion con Gemini
+# 2. Generación del Guion con Gemini API
 # ---------------------------------------------------------------------------
+
+def _generar_guion_sincrono(api_key: str, prompt: str) -> str:
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model=MODELO_GEMINI,
+        contents=prompt,
+        config=types.GenerateContentConfig(temperature=0.7)
+    )
+    if not response.text:
+        raise ValueError("La respuesta de la API de Gemini volvió vacía.")
+    return response.text
 
 async def generar_guion(texto_noticias: str) -> str:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
-        raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no está configurada o está vacía en los secretos de GitHub.")
+        raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no está configurada en los secretos de GitHub.")
 
-    client = genai.Client(api_key=api_key)
-    
     prompt = f"""
     Actúa como un locutor profesional de podcast de noticias sobre educación y tecnología educativa.
     Con la información de las siguientes noticias, redacta un guion dinámico, claro y coherente a una sola voz, en español.
@@ -79,19 +90,14 @@ async def generar_guion(texto_noticias: str) -> str:
 
     print(f"   Invocando API de Gemini con modelo: {MODELO_GEMINI}...")
     try:
-        response = await client.aio.models.generate_content(
-            model=MODELO_GEMINI,
-            contents=prompt,
-            config=types.GenerateContentConfig(temperature=0.7)
-        )
-        if not response.text:
-            raise ValueError("La respuesta de la API volvió vacía.")
-        return response.text
+        # Ejecuta la llamada síncrona en un hilo separado para proteger el Event Loop
+        guion_texto = await asyncio.to_thread(_generar_guion_sincrono, api_key, prompt)
+        return guion_texto
     except genai_errors.APIError as e:
-        print(f"[ERROR DETALLADO GEMINI API] Código HTTP {e.code} | Mensaje: {e.message}")
+        print(f"[ERROR GEMINI API] Código HTTP {e.code} | Mensaje: {e.message}")
         raise RuntimeError(f"Fallo de API Gemini (HTTP {e.code}): {e.message}")
     except Exception as e:
-        print(f"[ERROR INESPERADO GEMINI] {type(e).__name__}: {e}")
+        print(f"[ERROR EN GENERACIÓN DE GUION] {type(e).__name__}: {e}")
         raise e
 
 # ---------------------------------------------------------------------------
