@@ -11,18 +11,15 @@ from google.genai import errors as genai_errors
 from google.genai import types
 
 # ---------------------------------------------------------------------------
-# 1. Configuración de Fuentes RSS Ampliadas (Globales y Latinoamérica)
+# 1. Configuración de Fuentes RSS Ampliadas
 # ---------------------------------------------------------------------------
 
 RSS_FEEDS = [
-    # Institucionales y Multilaterales
     "https://www.unesco.org/en/rss/news/field_topic/education-38",
     "https://www.weforum.org/agenda/topics/education-and-skills/feed",
-    # América Latina y España
     "https://observatorio.tec.mx/feed/",
     "https://intef.es/feed/",
     "https://www.unam.mx/rss.xml",
-    # Periodismo Especializado y Tecnología Educativa
     "https://www.edsurge.com/articles_rss",
     "https://www.insidehighered.com/rss.xml",
     "https://www.edweek.org/technology.rss",
@@ -33,12 +30,10 @@ RSS_FEEDS = [
     "https://mfeldstein.com/feed/"
 ]
 
-# Configuración de Voces Neurónicas (Edge-TTS)
 VOZ_FEMENINA = "es-MX-DaliaNeural"   # Sofía
 VOZ_MASCULINA = "es-MX-JorgeNeural"   # Alejandro
 ARCHIVO_SALIDA = "episodio_hoy.mp3"
 
-# Candidatos de modelos compatibles
 MODELOS_CANDIDATOS = [
     "gemini-3.8-flash",
     "gemini-flash-latest",
@@ -46,7 +41,7 @@ MODELOS_CANDIDATOS = [
 ]
 
 # ---------------------------------------------------------------------------
-# 2. Extracción de Noticias RSS con Atribución de Fuente
+# 2. Extracción RSS
 # ---------------------------------------------------------------------------
 
 def limpiar_texto(texto: str) -> str:
@@ -82,7 +77,7 @@ async def obtener_titulares() -> str:
     return "\n".join(noticias_filtradas[:12])
 
 # ---------------------------------------------------------------------------
-# 3. Prompt Maestro para Podcast Conversacional "Eduradar" (5 a 7 Minutos)
+# 3. Prompt Maestro para "Eduradar" (5 a 7 Minutos)
 # ---------------------------------------------------------------------------
 
 def construir_prompt_maestro(texto_noticias: str) -> str:
@@ -98,29 +93,27 @@ Actúa como un equipo de dos periodistas y locutores profesionales de podcast so
 Tu objetivo es redactar un guion en formato de DIÁLOGO FLUIDO, DINÁMICO Y RIGUROSO entre Sofía y Alejandro para el podcast "Eduradar".
 
 TARGET DE EXTENSIÓN Y DENSIDAD (5 A 7 MINUTOS):
-- El guion DEBE contener entre 750 y 950 PALABRAS en total (equivalente a 5-7 minutos de locución a ritmo noticioso).
-- Mantén una alta densidad de datos reales sin rellenar con frases vacías.
+- El guion DEBE contener entre 750 y 950 PALABRAS en total.
 
 ESTRUCTURA DEL GUION:
 1. APERTURA Y BIENVENIDA DIRECTA:
-   - Inicien sin preámbulos técnicos con una bienvenida profesional y ágil.
-   - Mencionen explícitamente el nombre del podcast: "Eduradar".
-   - Mencionen de forma obligatoria la fecha de hoy: "{fecha_hoy}".
+   - Bienvenida profesional.
+   - Mencionen el nombre del podcast: "Eduradar".
+   - Mencionen la fecha de hoy: "{fecha_hoy}".
 2. DESARROLLO NOTICIOSO PERIODÍSTICO:
-   - Presenten y analicen de 3 a 5 noticias clave a partir del material fuente proporcionado.
-   - CITACIÓN OFICIAL OBLIGATORIA: Cada noticia DEBE atribuirse explícitamente a su fuente oficial (ej. "En un reciente reporte del Observatorio del Tec de Monterrey...", "Según datos divulgados por la UNAM...", "Un informe del World Economic Forum destaca...").
-   - CONTEXTO COMPLETO: Incluyan detalles precisos como universidades, países, nombres de iniciativas y plataformas disponibles. No dejen información a medias.
-   - DIÁLOGO INTERACTIVO: Sofía y Alejandro deben debatir brevemente el impacto pedagógico, realizando preguntas retóricas y aportando contexto analítico.
+   - De 3 a 5 noticias clave del material fuente.
+   - CITACIÓN OFICIAL OBLIGATORIA a la fuente emisora.
+   - CONTEXTO COMPLETO (datos, países, universidades).
 3. CIERRE DINÁMICO E INTERACTIVO:
-   - Planteen una PREGUNTA PROVOCADORA Y DEBATIBLE vinculada directamente a las notas presentadas para incentivar la participación de los oyentes en los foros de las plataformas.
-   - Incluyan un llamado a la acción (Call To Action - CTA) invitando a los escuchas a seguir el podcast para mantenerse informados sobre tendencias en educación y aprendizaje.
+   - PREGUNTA PROVOCADORA Y DEBATIBLE para los foros de la plataforma.
+   - Llamado a la acción (CTA) para seguir el podcast.
    - Despedida rápida a dos voces.
 
-RESTRICCIONES ESTRICTAS DE FORMATO PARA SÍNTESIS DE VOZ (TTS):
-- FORMATO DE ETIQUETAS: Cada intervención DEBE comenzar obligatoriamente con `SOFÍA:` o `ALEJANDRO:` en una nueva línea.
-- NO agregues acotaciones entre paréntesis ni corchetes (NADA de `[pausa]`, `[risas]` o `[música]`).
-- NO uses formato Markdown (SIN asteriscos, SIN negritas, SIN encabezados `#`, SIN viñetas `-`).
-- Escribe ÚNICAMENTE el texto limpio que será leído textualmente por el sintetizador.
+RESTRICCIONES ESTRICTAS PARA TTS:
+- Cada línea DEBE iniciar estrictamente con `SOFÍA:` o `ALEJANDRO:`.
+- NO agregues acotaciones entre paréntesis ni corchetes (NADA de `[pausa]`, `[risas]`).
+- NO uses formato Markdown (SIN asteriscos, SIN encabezados `#`, SIN viñetas `-`).
+- Escribe ÚNICAMENTE el texto limpio para locución.
 
 NOTICIAS FUENTE DISPONIBLES:
 {texto_noticias}
@@ -172,7 +165,7 @@ async def generar_guion(texto_noticias: str) -> str:
     raise RuntimeError(f"Ningún modelo estuvo disponible. Resumen de errores:\n" + "\n".join(errores))
 
 # ---------------------------------------------------------------------------
-# 4. Síntesis Multimóvil a Dos Voces (Ensemble de Audio)
+# 4. Síntesis Multimóvil Robusta a Dos Voces (Edge-TTS)
 # ---------------------------------------------------------------------------
 
 async def texto_a_audio_dos_voces(guion_texto: str) -> None:
@@ -184,8 +177,8 @@ async def texto_a_audio_dos_voces(guion_texto: str) -> None:
         if not linea:
             continue
             
-        voz_activa = None
-        texto_hablado = ""
+        voz_activa = VOZ_FEMENINA
+        texto_hablado = linea
         
         if linea.startswith("SOFÍA:") or linea.startswith("SOFIA:"):
             voz_activa = VOZ_FEMENINA
@@ -193,23 +186,27 @@ async def texto_a_audio_dos_voces(guion_texto: str) -> None:
         elif linea.startswith("ALEJANDRO:"):
             voz_activa = VOZ_MASCULINA
             texto_hablado = re.sub(r"^ALEJANDRO:\s*", "", linea, flags=re.IGNORECASE)
-        else:
-            voz_activa = VOZ_FEMENINA
-            texto_hablado = linea
 
-        # Limpieza secundaria de formato residual
-        texto_hablado = re.sub(r"[*#_`]+", "", texto_hablado).strip()
+        # Depuración estricta de caracteres y espacios para prevenir rechazo en Edge-TTS
+        texto_hablado = re.sub(r"[*#_`]+", "", texto_hablado)
+        texto_hablado = re.sub(r"\[.*?\]|\(.*?\)", "", texto_hablado) # Elimina posibles acotaciones residuales
+        texto_hablado = html.unescape(texto_hablado).strip()
 
-        if texto_hablado:
+        # Solo sintetizar si hay al menos una palabra o número válido
+        if len(texto_hablado) > 2 and re.search(r"\w", texto_hablado):
             temp_filename = f"fragmento_{idx}.mp3"
-            comunicador = edge_tts.Communicate(texto_hablado, voz_activa)
-            await comunicador.save(temp_filename)
-            bloques_audio.append(temp_filename)
+            try:
+                comunicador = edge_tts.Communicate(texto_hablado, voz_activa)
+                await comunicador.save(temp_filename)
+                if os.path.exists(temp_filename) and os.path.getsize(temp_filename) > 0:
+                    bloques_audio.append(temp_filename)
+            except Exception as e:
+                print(f"   [Aviso TTS] No se pudo sintetizar fragmento {idx}: {e}")
 
     if not bloques_audio:
-        raise ValueError("No se pudieron extraer bloques de diálogo para sintetizar.")
+        raise ValueError("No se generó ningún bloque de audio válido para concatenar.")
 
-    # Concatena los fragmentos ordenadamente en el MP3 final
+    # Concatena los archivos de audio en el MP3 final
     with open(ARCHIVO_SALIDA, "wb") as outfile:
         for temp_file in bloques_audio:
             if os.path.exists(temp_file):
@@ -222,7 +219,7 @@ async def texto_a_audio_dos_voces(guion_texto: str) -> None:
 # ---------------------------------------------------------------------------
 
 async def ejecutar_pipeline() -> None:
-    print("[1/3] Obteniendo noticias de fuentes RSS (Ampliadas)...")
+    print("[1/3] Obteniendo noticias de fuentes RSS...")
     noticias = await obtener_titulares()
     if not noticias:
         noticias = (
@@ -231,13 +228,13 @@ async def ejecutar_pipeline() -> None:
             "RESUMEN: Análisis sobre la adopción de herramientas de IA en universidades de México y Chile.\n---"
         )
 
-    print("[2/3] Generando guion conversacional (Eduradar - 5 a 7 min) con Gemini API...")
+    print("[2/3] Generando guion conversacional (Eduradar) con Gemini API...")
     guion = await generar_guion(noticias)
     palabras = len(guion.split())
     minutos_estimados = round(palabras / 140, 1)
     print(f"   Guion redactado con éxito ({palabras} palabras, aprox. {minutos_estimados} minutos de audio).")
 
-    print("[3/3] Sintetizando voces neurónicas (Sofía y Alejandro) a MP3...")
+    print("[3/3] Sintetizando voces neurónicas a MP3...")
     await texto_a_audio_dos_voces(guion)
     print(f"¡Proceso completado! Archivo '{ARCHIVO_SALIDA}' generado correctamente.")
 
