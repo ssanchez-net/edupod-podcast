@@ -51,26 +51,14 @@ async def generar_guion(texto_noticias):
     {texto_noticias}
     """
     
-    # Identificador de modelo solicitado explícitamente por la API
-    modelo_objetivo = 'gemini-3.8-flash'
-    
-    try:
-        response = client.models.generate_content(
-            model=modelo_objetivo,
-            contents=prompt,
-        )
-        if not response.text:
-            raise ValueError("La respuesta de Gemini volvió vacía.")
-        return response.text
-    except Exception as e:
-        print(f"[Error Gemini API] Error al invocar {modelo_objetivo}: {e}")
-        # Reintento de respaldo
-        print("[Info] Intentando con modelo de respaldo 'gemini-2.5-flash'...")
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-        )
-        return response.text
+    # Llamada directa al modelo flash activo
+    response = client.models.generate_content(
+        model='gemini-2.5-flash',
+        contents=prompt,
+    )
+    if not response.text:
+        raise ValueError("La respuesta de Gemini volvió vacía.")
+    return response.text
 
 async def texto_a_audio(texto_guion, archivo_salida="episodio_hoy.mp3"):
     """Convierte el texto del guion en un archivo de audio MP3 usando Edge-TTS."""
