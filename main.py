@@ -20,10 +20,7 @@ RSS_FEEDS = [
 
 VOZ_TTS = "es-MX-DaliaNeural"
 ARCHIVO_SALIDA = "episodio_hoy.mp3"
-
-# Modelo principal y de respaldo
-MODELO_PRIMARIO = "gemini-3.8-flash"
-MODELO_RESPALDO = "gemini-2.5-flash"
+MODELO_GEMINI = "gemini-3.8-flash"
 
 # ---------------------------------------------------------------------------
 # 1. Extracción de Noticias RSS
@@ -55,25 +52,37 @@ async def obtener_titulares() -> str:
     return "\n".join(item for grupo in resultados for item in grupo)
 
 # ---------------------------------------------------------------------------
-# 2. Generación del Guion con Gemini API (Manejo de HTTP 503 / Reintentos)
+# 2. Generación del Guion con Gemini API (Manejo de Reintentos de Red)
 # ---------------------------------------------------------------------------
 
-def _llamar_gemini(client: genai.Client, modelo: str, prompt: str) -> str:
+def _llamar_gemini_robusto(api_key: str, prompt: str) -> str:
+    # Configuración de cliente con reintentos automáticos a nivel de transporte HTTP
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            timeout=120_000, # 120 segundos límite
+            retry_options=types.HttpRetryOptions(
+                attempts=5,          # Hasta 5 reintentos automáticos ante 503/desconexiones
+                initial_delay=3.0,
+                max_delay=20.0,
+            )
+        )
+    )
+    
     response = client.models.generate_content(
-        model=modelo,
+        model=MODELO_GEMINI,
         contents=prompt,
         config=types.GenerateContentConfig(temperature=0.7)
     )
+    
     if not response.text:
-        raise ValueError("La respuesta de la API volvió vacía.")
+        raise ValueError("La respuesta de la API de Gemini volvió vacía.")
     return response.text
 
 async def generar_guion(texto_noticias: str) -> str:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no está configurada en los secretos de GitHub.")
-
-    client = genai.Client(api_key=api_key)
 
     prompt = f"""
     Actúa como un locutor profesional de podcast de noticias sobre educación y tecnología educativa.
@@ -89,28 +98,16 @@ async def generar_guion(texto_noticias: str) -> str:
     {texto_noticias}
     """
 
-    # Intentos con el modelo primario usando reintentos ante saturación (503)
-    max_reintentos = 3
-    for intento in range(1, max_reintentos + 1):
-        try:
-            print(f"   Invocando API de Gemini ({MODELO_PRIMARIO}) - Intento {intento}/{max_reintentos}...")
-            guion_texto = await asyncio.to_thread(_llamar_gemini, client, MODELO_PRIMARIO, prompt)
-            return guion_texto
-        except genai_errors.APIError as e:
-            print(f"   [Aviso API] Código HTTP {e.code}: {e.message}")
-            if e.code in (503, 429) and intento < max_reintentos:
-                tiempo_espera = intento * 5
-                print(f"   [Saturación de Servidor] Esperando {tiempo_espera} segundos para reintentar...")
-                await asyncio.sleep(tiempo_espera)
-            elif intento == max_reintentos:
-                print(f"   [Respaldo] Cambiando a modelo alternativo: {MODELO_RESPALDO}...")
-                try:
-                    return await asyncio.to_thread(_llamar_gemini, client, MODELO_RESPALDO, prompt)
-                except Exception as ex_respaldo:
-                    raise RuntimeError(f"Fallo final en la API tras reintentos (HTTP {e.code}): {e.message}") from ex_respaldo
-        except Exception as e:
-            print(f"   [Error Inesperado] {type(e).__name__}: {e}")
-            raise e
+    print(f"   Invocando API de Gemini ({MODELO_GEMINI}) con reintentos de red nativos...")
+    try:
+        guion_texto = await asyncio.to_thread(_llamar_gemini_robusto, api_key, prompt)
+        return guion_texto
+    except genai_errors.APIError as e:
+        print(f"[ERROR GEMINI API] Código HTTP {e.code} | Mensaje: {e.message}")
+        raise RuntimeError(f"Fallo persistente de API Gemini (HTTP {e.code}): {e.message}")
+    except Exception as e:
+        print(f"[ERROR DE RED / SOCKET] {type(e).__name__}: {e}")
+        raise e
 
 # ---------------------------------------------------------------------------
 # 3. Conversión de Texto a Audio MP3
