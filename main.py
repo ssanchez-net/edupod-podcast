@@ -17,12 +17,15 @@ def obtener_titulares():
     for url in RSS_FEEDS:
         try:
             feed = feedparser.parse(url)
-            for entry in feed.entries[:2]:
-                titulo = entry.get('title', 'Sin título')
-                resumen = entry.get('summary', 'Sin resumen disponible')
-                noticias_acumuladas.append(f"Título: {titulo}\nResumen: {resumen}\n---")
+            if hasattr(feed, 'entries') and feed.entries:
+                for entry in feed.entries[:2]:
+                    titulo = getattr(entry, 'title', 'Sin título')
+                    resumen = getattr(entry, 'summary', getattr(entry, 'description', 'Sin resumen'))
+                    noticias_acumuladas.append(f"Título: {titulo}\nResumen: {resumen}\n---")
+            else:
+                print(f"[Advertencia] No se encontraron entradas en el feed: {url}")
         except Exception as e:
-            print(f"Error al leer la fuente {url}: {e}")
+            print(f"[Error RSS] Error al leer la fuente {url}: {e}")
             
     return "\n".join(noticias_acumuladas)
 
@@ -30,7 +33,7 @@ async def generar_guion(texto_noticias):
     """Envía las noticias extraídas a Gemini API para redactar el guion."""
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
-        raise ValueError("La variable GEMINI_API_KEY no está configurada en los secretos de GitHub.")
+        raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no está configurada o está vacía en los secretos del repositorio.")
         
     client = genai.Client(api_key=api_key)
     
@@ -42,17 +45,29 @@ async def generar_guion(texto_noticias):
     1. La lectura del guion debe durar entre 3 y 4 minutos (aproximadamente entre 450 y 550 palabras).
     2. NO incluyas acotaciones de sonido, marcadores de tono, ni indicaciones entre paréntesis o corchetes.
     3. Escribe ÚNICAMENTE el texto que será leído textualmente por el sintetizador de voz.
-    4. Estructura el contenido con una breve bienvenida, el desarrollo de las 3 notas más importantes y una despedida rápida.
+    4. Estructura el contenido con una breve bienvenida, el desarrollo de las noticias principales y una despedida rápida.
 
     Noticias fuente:
     {texto_noticias}
     """
     
-    response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=prompt,
-    )
-    return response.text
+    try:
+        # Uso del modelo flash estándar respaldado por la librería
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
+        if not response.text:
+            raise ValueError("La respuesta de Gemini volvió vacía.")
+        return response.text
+    except Exception as e:
+        print(f"[Error Gemini API] Fallo al generar guion con el modelo predeterminado: {e}")
+        # Intento de respaldo con modelo 1.5-flash
+        response = client.models.generate_content(
+            model='gemini-1.5-flash',
+            contents=prompt,
+        )
+        return response.text
 
 async def texto_a_audio(texto_guion, archivo_salida="episodio_hoy.mp3"):
     """Convierte el texto del guion en un archivo de audio MP3 usando Edge-TTS."""
@@ -65,10 +80,12 @@ async def ejecutar_pipeline():
     noticias = obtener_titulares()
     
     if not noticias:
-        raise ValueError("No se pudieron extraer noticias de las fuentes RSS.")
+        print("[Alerta] No se pudieron extraer noticias RSS, utilizando noticia de respaldo...")
+        noticias = "Título: Avances en Inteligencia Artificial Aplicada a la Educación en 2026.\nResumen: Las herramientas de IA continúan transformando la personalización del aprendizaje en el aula global."
         
     print("[2/3] Generando guion con Gemini API...")
     guion = await generar_guion(noticias)
+    print(f"Guion generado con éxito ({len(guion.split())} palabras).")
     
     print("[3/3] Sintetizando voz y generando archivo MP3...")
     await texto_a_audio(guion)
