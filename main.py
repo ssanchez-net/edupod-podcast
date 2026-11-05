@@ -111,7 +111,7 @@ ESTRUCTURA DEL GUION:
    - Despedida rápida a dos voces.
 
 RESTRICCIONES ESTRICTAS PARA TTS:
-- Cada línea DEBE iniciar strictly con `SOFÍA:` o `ALEJANDRO:`.
+- Cada línea DEBE iniciar estrictamente con `SOFÍA:` o `ALEJANDRO:`.
 - NO agregues acotaciones entre paréntesis ni corchetes (NADA de `[pausa]`, `[risas]`).
 - NO uses formato Markdown (SIN asteriscos, SIN encabezados `#`, SIN viñetas `-`).
 - Escribe ÚNICAMENTE el texto limpio para locución.
@@ -138,32 +138,41 @@ async def generar_guion(texto_noticias: str) -> str:
     client = genai.Client(
         api_key=api_key,
         http_options=types.HttpOptions(
-            timeout=110_000,
-            retry_options=types.HttpRetryOptions(attempts=2, initial_delay=2.0, max_delay=10.0)
+            timeout=120_000,
+            retry_options=types.HttpRetryOptions(attempts=3, initial_delay=3.0, max_delay=15.0)
         )
     )
 
     prompt = construir_prompt_maestro(texto_noticias)
-
     errores = []
-    for modelo in MODELOS_CANDIDATOS:
-        print(f"   Intentando generación con modelo: {modelo}...")
-        try:
-            guion_texto = await asyncio.to_thread(_llamar_modelo, client, modelo, prompt)
-            print(f"   [Éxito] Guion conversacional para 'Eduradar' generado con {modelo}.")
-            return guion_texto
-        except genai_errors.APIError as e:
-            msg = f"{modelo} -> HTTP {e.code}: {e.message}"
-            print(f"   [Aviso API] {msg}")
-            errores.append(msg)
-            if e.code in (401, 403):
-                break
-        except Exception as e:
-            msg = f"{modelo} -> {type(e).__name__}: {e}"
-            print(f"   [Error] {msg}")
-            errores.append(msg)
 
-    raise RuntimeError(f"Ningún modelo estuvo disponible. Resumen de errores:\n" + "\n".join(errores))
+    for modelo in MODELOS_CANDIDATOS:
+        # Intentamos hasta 2 veces por cada modelo antes de saltar al siguiente candidato
+        for intento in range(1, 3):
+            print(f"   Intentando generación con modelo: {modelo} (Intento {intento}/2)...")
+            try:
+                guion_texto = await asyncio.to_thread(_llamar_modelo, client, modelo, prompt)
+                print(f"   [Éxito] Guion conversacional para 'Eduradar' generado con {modelo}.")
+                return guion_texto
+            except genai_errors.APIError as e:
+                msg = f"{modelo} (intento {intento}) -> HTTP {e.code}: {e.message}"
+                print(f"   [Aviso API] {msg}")
+                errores.append(msg)
+                
+                if e.code in (401, 403):
+                    # Clave o permisos inválidos: romper el bucle por completo
+                    break
+                elif e.code == 503:
+                    # Saturación temporal: esperar 8 segundos antes de reintentar
+                    print("   [Servidor Saturado 503] Pausando 8 segundos para recuperar conexión...")
+                    await asyncio.sleep(8)
+            except Exception as e:
+                msg = f"{modelo} -> {type(e).__name__}: {e}"
+                print(f"   [Error] {msg}")
+                errores.append(msg)
+                break
+
+    raise RuntimeError(f"Ningún modelo estuvo disponible tras reintentos por saturación. Resumen de errores:\n" + "\n".join(errores))
 
 def guardar_guion_texto(guion_texto: str) -> None:
     """Guarda el guion generado en un archivo de texto (.txt) independiente."""
@@ -234,7 +243,7 @@ async def ejecutar_pipeline() -> None:
 
     print("[2/3] Generando guion conversacional (Eduradar) con Gemini API...")
     guion = await generar_guion(noticias)
-    guardar_guion_texto(guion)  # Exportación del archivo .txt
+    guardar_guion_texto(guion)
     palabras = len(guion.split())
     minutos_estimados = round(palabras / 140, 1)
     print(f"   Guion redactado con éxito ({palabras} palabras, aprox. {minutos_estimados} minutos de audio).")
