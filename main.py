@@ -2,6 +2,7 @@ import os
 import sys
 import html
 import re
+import json
 import asyncio
 from datetime import datetime
 import feedparser
@@ -17,6 +18,7 @@ from google.genai import types
 FECHA_STR = datetime.now().strftime("%d%m%Y")
 ARCHIVO_SALIDA = f"episodio_ep{FECHA_STR}.mp3"
 ARCHIVO_GUION = f"guion_ep{FECHA_STR}.txt"
+ARCHIVO_HISTORICO = "historico_noticias.json"
 
 RSS_FEEDS = [
     "https://www.unesco.org/en/rss/news/field_topic/education-38",
@@ -44,43 +46,69 @@ MODELOS_TEXTO = [
 ]
 
 # ---------------------------------------------------------------------------
-# 2. Extracción RSS
+# 2. Control de Historico Anti-Repetición
 # ---------------------------------------------------------------------------
+
+def cargar_historico() -> list[str]:
+    if os.path.exists(ARCHIVO_HISTORICO):
+        try:
+            with open(ARCHIVO_HISTORICO, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+def guardar_historico(nuevos_titulos: list[str]) -> None:
+    historico = cargar_historico()
+    historico.extend(nuevos_titulos)
+    # Conservar únicamente los últimos 50 títulos para mantener el archivo ligero
+    historico = historico[-50:]
+    with open(ARCHIVO_HISTORICO, "w", encoding="utf-8") as f:
+        json.dump(historico, f, ensure_ascii=False, indent=2)
 
 def limpiar_texto(texto: str) -> str:
     texto = re.sub(r"<[^>]+>", " ", texto)
     texto = html.unescape(texto)
     return re.sub(r"\s+", " ", texto).strip()[:700]
 
-def _parsear_feed(url: str) -> list[str]:
+def _parsear_feed(url: str, historico: list[str]) -> list[tuple[str, str]]:
     try:
         feed = feedparser.parse(url)
         nombre_fuente = feed.feed.get('title', url)
         entradas = getattr(feed, "entries", [])
         items = []
-        for entry in entradas[:2]:
+        for entry in entradas[:3]:
             titulo = limpiar_texto(getattr(entry, "title", "Sin título"))
+            # Filtro anti-repetición: omitir si ya se usó recientemente
+            if titulo in historico:
+                continue
             resumen = limpiar_texto(getattr(entry, "summary", getattr(entry, "description", "Sin resumen")))
             link = getattr(entry, "link", "")
-            items.append(
+            bloque = (
                 f"FUENTE OFICIAL: {nombre_fuente}\n"
                 f"ENLACE: {link}\n"
                 f"TÍTULO: {titulo}\n"
                 f"RESUMEN: {resumen}\n---"
             )
+            items.append((titulo, bloque))
         return items
     except Exception as e:
         print(f"[Error RSS] {url}: {e}")
         return []
 
-async def obtener_titulares() -> str:
-    tareas = [asyncio.to_thread(_parsear_feed, url) for url in RSS_FEEDS]
+async def obtener_titulares() -> tuple[str, list[str]]:
+    historico = cargar_historico()
+    tareas = [asyncio.to_thread(_parsear_feed, url, historico) for url in RSS_FEEDS]
     resultados = await asyncio.gather(*tareas)
-    noticias_filtradas = [item for grupo in resultados for item in grupo if item]
-    return "\n".join(noticias_filtradas[:12])
+    
+    todos_los_items = [item for grupo in resultados for item in grupo]
+    titulos_usados = [t[0] for t in todos_los_items[:12]]
+    bloques_texto = [t[1] for t in todos_los_items[:12]]
+    
+    return "\n".join(bloques_texto), titulos_usados
 
 # ---------------------------------------------------------------------------
-# 3. Prompt Maestro para "Eduradar" (Con Expresividad Adaptada a TTS)
+# 3. Prompt Maestro Expresivo para "Edu-Radar"
 # ---------------------------------------------------------------------------
 
 def construir_prompt_maestro(texto_noticias: str) -> str:
@@ -90,27 +118,28 @@ def construir_prompt_maestro(texto_noticias: str) -> str:
 
     return f"""
 Actúa como un equipo de dos periodistas y locutores profesionales de podcast sobre educación y EdTech:
-- SOFÍA: Presentadora principal, analítica, apasionada por las políticas educativas y la inclusión.
+- SOFÍA: Presentadora principal, analítica, apasionada por las políticas educativas e inclusión.
 - ALEJANDRO: Co-presentador, dinámico, enfocado en tecnología de aprendizaje e impacto práctico.
 
-Tu objetivo es redactar un guion en formato de DIÁLOGO FLUIDO, NATURAL Y ENTRETENIDO entre Sofía y Alejandro para el podcast "Eduradar".
+Tu objetivo es redactar un guion en formato de DIÁLOGO SUMAMENTE EXPRESIVO, NATURAL Y ENTRETENIDO para el podcast "Edu-Radar".
 
 TARGET DE EXTENSIÓN: Entre 750 y 950 PALABRAS (5 a 7 minutos).
 
-ESTRUCTURA DEL GUION:
-1. APERTURA: Saludo profesional y caluroso, nombre "Eduradar" y fecha exacta "{fecha_hoy}".
-2. DESARROLLO NOTICIOSO:
-   - Atribución explícita de la fuente oficial en cada nota (ej. "De acuerdo con el Observatorio del Tec de Monterrey...", "Según datos de la UNAM...").
-   - Detallar contexto completo (países, instituciones, proyectos).
-   - Diálogo dinámico con preguntas retóricas, pausas expresivas y énfasis en puntos clave.
-3. CIERRE INTERACTIVO:
-   - Pregunta provocadora para motivar la conversación en los foros de la plataforma.
-   - Llamado a la acción (CTA) para seguir el podcast.
-   - Despedida ágil a dos voces.
+REGLAS DE INTENSIÓN Y EMOCIÓN EN EL GUION (PARA SÍNTESIS DE VOZ):
+1. PRONUNCIACIÓN DEL NOMBRE: Escribe SIEMPRE el nombre del podcast como `Edu-Radar` (separado con guión) para asegurar la correcta modulación fonética.
+2. DENSIDAD EMOCIONAL Y RITMO:
+   - Usa frases cortas y directas. Evita oraciones largas de más de 15 palabras.
+   - Utiliza signos de interrogación (`¿...?`) para lanzar preguntas espontáneas entre los locutores.
+   - Utiliza signos de admiración (`¡...!`) para dar énfasis y entusiasmo en noticias clave.
+   - Usa puntos suspensivos (`...`) antes de revelar datos importantes para simular pausas de respiración y expectativa humana.
+3. ESTRUCTURA:
+   - APERTURA: Saludo caluroso, mención de "Edu-Radar" y la fecha exacta "{fecha_hoy}".
+   - NOTICIAS: Citación explícita de la fuente oficial en cada nota.
+   - CIERRE: Pregunta provocadora para la audiencia y llamada a la acción (CTA) para seguir el podcast.
 
 RESTRICCIONES ESTRICTAS:
 - Cada línea DEBE comenzar estrictamente con `SOFÍA:` o `ALEJANDRO:`.
-- NO uses acotaciones entre corchetes o paréntesis (nada de `[risas]`, `[pausa]`).
+- NO agregues acotaciones entre paréntesis o corchetes (nada de `[risas]`, `[pausa]`).
 - NO uses formato Markdown (sin asteriscos, sin encabezados `#`, sin viñetas).
 - Escribe ÚNICAMENTE el texto limpio para locución.
 
@@ -122,7 +151,7 @@ def _llamar_modelo(client: genai.Client, modelo: str, prompt: str) -> str:
     response = client.models.generate_content(
         model=modelo,
         contents=prompt,
-        config=types.GenerateContentConfig(temperature=0.65)
+        config=types.GenerateContentConfig(temperature=0.7)
     )
     if not response.text:
         raise ValueError("La respuesta de la API volvió vacía.")
@@ -173,7 +202,7 @@ def guardar_guion_texto(guion_texto: str) -> None:
     print(f"   [OK] Guion guardado en '{ARCHIVO_GUION}'.")
 
 # ---------------------------------------------------------------------------
-# 4. Síntesis Multimóvil de Alta Fiabilidad (Edge-TTS)
+# 4. Síntesis Multimóvil Expresiva (Edge-TTS)
 # ---------------------------------------------------------------------------
 
 async def texto_a_audio_dos_voces(guion_texto: str) -> None:
@@ -195,7 +224,8 @@ async def texto_a_audio_dos_voces(guion_texto: str) -> None:
             voz_activa = VOZ_MASCULINA
             texto_hablado = re.sub(r"^ALEJANDRO:\s*", "", linea, flags=re.IGNORECASE)
 
-        # Depuración estricta de formato residual
+        # Reemplazo fonético preventivo
+        texto_hablado = re.sub(r"\bEduradar\b", "Edu-Radar", texto_hablado, flags=re.IGNORECASE)
         texto_hablado = re.sub(r"[*#_`]+", "", texto_hablado)
         texto_hablado = re.sub(r"\[.*?\]|\(.*?\)", "", texto_hablado)
         texto_hablado = html.unescape(texto_hablado).strip()
@@ -225,12 +255,17 @@ async def texto_a_audio_dos_voces(guion_texto: str) -> None:
 # ---------------------------------------------------------------------------
 
 async def ejecutar_pipeline() -> None:
-    print(f"[1/3] Obteniendo noticias RSS para el episodio {FECHA_STR}...")
-    noticias = await obtener_titulares()
+    print(f"[1/3] Obteniendo noticias RSS para el episodio {FECHA_STR} (Con filtro anti-repetición)...")
+    noticias, titulos_usados = await obtener_titulares()
 
-    print("[2/3] Generando guion conversacional con Gemini API...")
+    print("[2/3] Generando guion conversacional expresivo con Gemini API...")
     guion = await generar_guion(noticias)
     guardar_guion_texto(guion)
+    
+    # Registrar las noticias elegidas en el histórico
+    if titulos_usados:
+        guardar_historico(titulos_usados)
+
     palabras = len(guion.split())
     minutos_estimados = round(palabras / 140, 1)
     print(f"   Guion redactado con éxito ({palabras} palabras, aprox. {minutos_estimados} minutos de audio).")
