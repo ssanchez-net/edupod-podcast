@@ -148,7 +148,6 @@ async def generar_guion(texto_noticias: str) -> str:
     errores = []
 
     for modelo in MODELOS_CANDIDATOS:
-        # Intentamos hasta 2 veces por cada modelo antes de saltar al siguiente candidato
         for intento in range(1, 3):
             print(f"   Intentando generación con modelo: {modelo} (Intento {intento}/2)...")
             try:
@@ -161,11 +160,10 @@ async def generar_guion(texto_noticias: str) -> str:
                 errores.append(msg)
                 
                 if e.code in (401, 403):
-                    # Clave o permisos inválidos: romper el bucle por completo
                     break
                 elif e.code == 503:
-    print("   [Servidor Saturado 503] Pausando 15 segundos para recuperar conexión...")
-    await asyncio.sleep(15)
+                    print("   [Servidor Saturado 503] Pausando 15 segundos para recuperar conexión...")
+                    await asyncio.sleep(15)
             except Exception as e:
                 msg = f"{modelo} -> {type(e).__name__}: {e}"
                 print(f"   [Error] {msg}")
