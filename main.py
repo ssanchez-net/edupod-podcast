@@ -33,6 +33,7 @@ RSS_FEEDS = [
 VOZ_FEMENINA = "es-MX-DaliaNeural"   # Sofía
 VOZ_MASCULINA = "es-MX-JorgeNeural"   # Alejandro
 ARCHIVO_SALIDA = "episodio_hoy.mp3"
+ARCHIVO_GUION = "guion_episodio.txt"
 
 MODELOS_CANDIDATOS = [
     "gemini-3.8-flash",
@@ -110,7 +111,7 @@ ESTRUCTURA DEL GUION:
    - Despedida rápida a dos voces.
 
 RESTRICCIONES ESTRICTAS PARA TTS:
-- Cada línea DEBE iniciar estrictamente con `SOFÍA:` o `ALEJANDRO:`.
+- Cada línea DEBE iniciar strictly con `SOFÍA:` o `ALEJANDRO:`.
 - NO agregues acotaciones entre paréntesis ni corchetes (NADA de `[pausa]`, `[risas]`).
 - NO uses formato Markdown (SIN asteriscos, SIN encabezados `#`, SIN viñetas `-`).
 - Escribe ÚNICAMENTE el texto limpio para locución.
@@ -164,6 +165,12 @@ async def generar_guion(texto_noticias: str) -> str:
 
     raise RuntimeError(f"Ningún modelo estuvo disponible. Resumen de errores:\n" + "\n".join(errores))
 
+def guardar_guion_texto(guion_texto: str) -> None:
+    """Guarda el guion generado en un archivo de texto (.txt) independiente."""
+    with open(ARCHIVO_GUION, "w", encoding="utf-8") as f:
+        f.write(guion_texto)
+    print(f"   [OK] Guion guardado exitosamente en '{ARCHIVO_GUION}'.")
+
 # ---------------------------------------------------------------------------
 # 4. Síntesis Multimóvil Robusta a Dos Voces (Edge-TTS)
 # ---------------------------------------------------------------------------
@@ -187,12 +194,10 @@ async def texto_a_audio_dos_voces(guion_texto: str) -> None:
             voz_activa = VOZ_MASCULINA
             texto_hablado = re.sub(r"^ALEJANDRO:\s*", "", linea, flags=re.IGNORECASE)
 
-        # Depuración estricta de caracteres y espacios para prevenir rechazo en Edge-TTS
         texto_hablado = re.sub(r"[*#_`]+", "", texto_hablado)
-        texto_hablado = re.sub(r"\[.*?\]|\(.*?\)", "", texto_hablado) # Elimina posibles acotaciones residuales
+        texto_hablado = re.sub(r"\[.*?\]|\(.*?\)", "", texto_hablado)
         texto_hablado = html.unescape(texto_hablado).strip()
 
-        # Solo sintetizar si hay al menos una palabra o número válido
         if len(texto_hablado) > 2 and re.search(r"\w", texto_hablado):
             temp_filename = f"fragmento_{idx}.mp3"
             try:
@@ -206,7 +211,6 @@ async def texto_a_audio_dos_voces(guion_texto: str) -> None:
     if not bloques_audio:
         raise ValueError("No se generó ningún bloque de audio válido para concatenar.")
 
-    # Concatena los archivos de audio en el MP3 final
     with open(ARCHIVO_SALIDA, "wb") as outfile:
         for temp_file in bloques_audio:
             if os.path.exists(temp_file):
@@ -230,13 +234,14 @@ async def ejecutar_pipeline() -> None:
 
     print("[2/3] Generando guion conversacional (Eduradar) con Gemini API...")
     guion = await generar_guion(noticias)
+    guardar_guion_texto(guion)  # Exportación del archivo .txt
     palabras = len(guion.split())
     minutos_estimados = round(palabras / 140, 1)
     print(f"   Guion redactado con éxito ({palabras} palabras, aprox. {minutos_estimados} minutos de audio).")
 
     print("[3/3] Sintetizando voces neurónicas a MP3...")
     await texto_a_audio_dos_voces(guion)
-    print(f"¡Proceso completado! Archivo '{ARCHIVO_SALIDA}' generado correctamente.")
+    print(f"¡Proceso completado! Archivos '{ARCHIVO_SALIDA}' y '{ARCHIVO_GUION}' generados correctamente.")
 
 if __name__ == "__main__":
     try:
