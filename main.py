@@ -36,7 +36,6 @@ ARCHIVO_SALIDA = "episodio_hoy.mp3"
 ARCHIVO_GUION = "guion_episodio.txt"
 
 MODELOS_CANDIDATOS = [
-    "gemini-2.5-flash",
     "gemini-3.8-flash",
     "gemini-flash-latest",
     "gemini-flash-lite-latest"
