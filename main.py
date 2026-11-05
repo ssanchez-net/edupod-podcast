@@ -36,6 +36,7 @@ ARCHIVO_SALIDA = "episodio_hoy.mp3"
 ARCHIVO_GUION = "guion_episodio.txt"
 
 MODELOS_CANDIDATOS = [
+    "gemini-2.5-flash",
     "gemini-3.8-flash",
     "gemini-flash-latest",
     "gemini-flash-lite-latest"
@@ -163,9 +164,8 @@ async def generar_guion(texto_noticias: str) -> str:
                     # Clave o permisos inválidos: romper el bucle por completo
                     break
                 elif e.code == 503:
-                    # Saturación temporal: esperar 8 segundos antes de reintentar
-                    print("   [Servidor Saturado 503] Pausando 8 segundos para recuperar conexión...")
-                    await asyncio.sleep(8)
+    print("   [Servidor Saturado 503] Pausando 15 segundos para recuperar conexión...")
+    await asyncio.sleep(15)
             except Exception as e:
                 msg = f"{modelo} -> {type(e).__name__}: {e}"
                 print(f"   [Error] {msg}")
