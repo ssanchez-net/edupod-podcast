@@ -5,6 +5,7 @@ import re
 import asyncio
 from datetime import datetime
 import feedparser
+import edge_tts
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
@@ -33,13 +34,14 @@ RSS_FEEDS = [
     "https://mfeldstein.com/feed/"
 ]
 
+VOZ_FEMENINA = "es-MX-DaliaNeural"   # Sofía
+VOZ_MASCULINA = "es-MX-JorgeNeural"   # Alejandro
+
 MODELOS_TEXTO = [
     "gemini-3.8-flash",
     "gemini-flash-latest",
     "gemini-flash-lite-latest"
 ]
-
-MODELO_TTS = "gemini-3.8-flash-tts"
 
 # ---------------------------------------------------------------------------
 # 2. Extracción RSS
@@ -78,7 +80,7 @@ async def obtener_titulares() -> str:
     return "\n".join(noticias_filtradas[:12])
 
 # ---------------------------------------------------------------------------
-# 3. Prompt Maestro para "Eduradar"
+# 3. Prompt Maestro para "Eduradar" (Con Expresividad Adaptada a TTS)
 # ---------------------------------------------------------------------------
 
 def construir_prompt_maestro(texto_noticias: str) -> str:
@@ -91,26 +93,28 @@ Actúa como un equipo de dos periodistas y locutores profesionales de podcast so
 - SOFÍA: Presentadora principal, analítica, apasionada por las políticas educativas y la inclusión.
 - ALEJANDRO: Co-presentador, dinámico, enfocado en tecnología de aprendizaje e impacto práctico.
 
-Tu objetivo es redactar un guion en formato de DIÁLOGO FLUIDO Y EXPRESIVO para el podcast "Eduradar".
+Tu objetivo es redactar un guion en formato de DIÁLOGO FLUIDO, NATURAL Y ENTRETENIDO entre Sofía y Alejandro para el podcast "Eduradar".
 
 TARGET DE EXTENSIÓN: Entre 750 y 950 PALABRAS (5 a 7 minutos).
 
-ESTRUCTURA Y EXPRESIVIDAD EXPLICITA:
-1. APERTURA: Saludo caluroso, nombre "Eduradar" y fecha exacta "{fecha_hoy}".
-2. CITA DE FUENTES: Atribución explícita a la institución o fuente oficial en cada nota.
-3. EXPRESIONES VOCALES: Integra dentro del texto las etiquetas de inflexión vocal:
-   - `<breath>` para pausas de respiración.
-   - `<chuckle>` para momentos amables.
-   - `<enthusiastic>` para enfatizar noticias o hallazgos importantes.
-   - `<astonishment>` para datos sorprendentes.
-4. CIERRE: Pregunta provocadora para la comunidad y llamado a la acción (CTA).
+ESTRUCTURA DEL GUION:
+1. APERTURA: Saludo profesional y caluroso, nombre "Eduradar" y fecha exacta "{fecha_hoy}".
+2. DESARROLLO NOTICIOSO:
+   - Atribución explícita de la fuente oficial en cada nota (ej. "De acuerdo con el Observatorio del Tec de Monterrey...", "Según datos de la UNAM...").
+   - Detallar contexto completo (países, instituciones, proyectos).
+   - Diálogo dinámico con preguntas retóricas, pausas expresivas y énfasis en puntos clave.
+3. CIERRE INTERACTIVO:
+   - Pregunta provocadora para motivar la conversación en los foros de la plataforma.
+   - Llamado a la acción (CTA) para seguir el podcast.
+   - Despedida ágil a dos voces.
 
-RESTRICCIONES:
-- Cada línea DEBE comenzar exactamente con `SOFÍA:` o `ALEJANDRO:`.
-- NO agregues acotaciones entre corchetes rectos `[...]`.
-- NO uses formato Markdown (sin asteriscos, sin negritas).
+RESTRICCIONES ESTRICTAS:
+- Cada línea DEBE comenzar estrictamente con `SOFÍA:` o `ALEJANDRO:`.
+- NO uses acotaciones entre corchetes o paréntesis (nada de `[risas]`, `[pausa]`).
+- NO uses formato Markdown (sin asteriscos, sin encabezados `#`, sin viñetas).
+- Escribe ÚNICAMENTE el texto limpio para locución.
 
-NOTICIAS FUENTE:
+NOTICIAS FUENTE DISPONIBLES:
 {texto_noticias}
 """
 
@@ -169,80 +173,45 @@ def guardar_guion_texto(guion_texto: str) -> None:
     print(f"   [OK] Guion guardado en '{ARCHIVO_GUION}'.")
 
 # ---------------------------------------------------------------------------
-# 4. Síntesis Agrupada con Gemini 3.8 Flash TTS (Ahorro Extremo de Cuota)
+# 4. Síntesis Multimóvil de Alta Fiabilidad (Edge-TTS)
 # ---------------------------------------------------------------------------
 
-def _sintetizar_bloque_gemini(client: genai.Client, texto: str, voz: str) -> bytes:
-    response = client.models.generate_content(
-        model=MODELO_TTS,
-        contents=texto,
-        config=types.GenerateContentConfig(
-            response_mime_type="audio/mp3",
-            speech_config=types.SpeechConfig(
-                voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voz)
-                )
-            )
-        )
-    )
-    return response.candidates[0].content.parts[0].inline_data.data
-
-async def texto_a_audio_gemini_tts(guion_texto: str) -> None:
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    client = genai.Client(api_key=api_key)
-    
+async def texto_a_audio_dos_voces(guion_texto: str) -> None:
     lineas = guion_texto.strip().split("\n")
-    bloques_procesar = []
-    voz_actual = None
-    texto_acumulado = []
-
-    # Agrupamiento de intervenciones consecutivas de un mismo locutor para reducir llamadas a la API
-    for linea in lineas:
+    bloques_audio = []
+    
+    for idx, linea in enumerate(lineas):
         linea = linea.strip()
         if not linea:
             continue
             
-        voz_linea = "Jori"
-        texto_limpio = linea
+        voz_activa = VOZ_FEMENINA
+        texto_hablado = linea
         
         if linea.startswith("SOFÍA:") or linea.startswith("SOFIA:"):
-            voz_linea = "Jori"
-            texto_limpio = re.sub(r"^SOFÍ?A:\s*", "", linea, flags=re.IGNORECASE)
+            voz_activa = VOZ_FEMENINA
+            texto_hablado = re.sub(r"^SOFÍ?A:\s*", "", linea, flags=re.IGNORECASE)
         elif linea.startswith("ALEJANDRO:"):
-            voz_linea = "Rami"
-            texto_limpio = re.sub(r"^ALEJANDRO:\s*", "", linea, flags=re.IGNORECASE)
+            voz_activa = VOZ_MASCULINA
+            texto_hablado = re.sub(r"^ALEJANDRO:\s*", "", linea, flags=re.IGNORECASE)
 
-        texto_limpio = html.unescape(texto_limpio).strip()
+        # Depuración estricta de formato residual
+        texto_hablado = re.sub(r"[*#_`]+", "", texto_hablado)
+        texto_hablado = re.sub(r"\[.*?\]|\(.*?\)", "", texto_hablado)
+        texto_hablado = html.unescape(texto_hablado).strip()
 
-        if voz_actual is None:
-            voz_actual = voz_linea
-            texto_acumulado.append(texto_limpio)
-        elif voz_linea == voz_actual:
-            texto_acumulado.append(texto_limpio)
-        else:
-            bloques_procesar.append((" ".join(texto_acumulado), voz_actual))
-            voz_actual = voz_linea
-            texto_acumulado = [texto_limpio]
-
-    if texto_acumulado:
-        bloques_procesar.append((" ".join(texto_acumulado), voz_actual))
-
-    bloques_audio = []
-    for idx, (texto_bloque, voz) in enumerate(bloques_procesar):
-        if len(texto_bloque.strip()) > 2:
+        if len(texto_hablado) > 2 and re.search(r"\w", texto_hablado):
             temp_filename = f"fragmento_{idx}.mp3"
             try:
-                print(f"   Sintetizando bloque {idx+1}/{len(bloques_procesar)} con voz '{voz}'...")
-                audio_bytes = await asyncio.to_thread(_sintetizar_bloque_gemini, client, texto_bloque, voz)
-                with open(temp_filename, "wb") as f:
-                    f.write(audio_bytes)
-                bloques_audio.append(temp_filename)
-                await asyncio.sleep(2) # Pausa estratégica de seguridad entre solicitudes
+                comunicador = edge_tts.Communicate(texto_hablado, voz_activa)
+                await comunicador.save(temp_filename)
+                if os.path.exists(temp_filename) and os.path.getsize(temp_filename) > 0:
+                    bloques_audio.append(temp_filename)
             except Exception as e:
-                print(f"   [Aviso TTS Gemini] Error en bloque {idx}: {e}")
+                print(f"   [Aviso TTS] No se pudo sintetizar fragmento {idx}: {e}")
 
     if not bloques_audio:
-        raise ValueError("No se generó ningún fragmento de audio válido.")
+        raise ValueError("No se generó ningún bloque de audio válido para concatenar.")
 
     with open(ARCHIVO_SALIDA, "wb") as outfile:
         for temp_file in bloques_audio:
@@ -259,13 +228,16 @@ async def ejecutar_pipeline() -> None:
     print(f"[1/3] Obteniendo noticias RSS para el episodio {FECHA_STR}...")
     noticias = await obtener_titulares()
 
-    print("[2/3] Generando guion expresivo con Gemini API...")
+    print("[2/3] Generando guion conversacional con Gemini API...")
     guion = await generar_guion(noticias)
     guardar_guion_texto(guion)
+    palabras = len(guion.split())
+    minutos_estimados = round(palabras / 140, 1)
+    print(f"   Guion redactado con éxito ({palabras} palabras, aprox. {minutos_estimados} minutos de audio).")
 
-    print(f"[3/3] Sintetizando audio expresivo (Gemini TTS: Jori y Rami) -> {ARCHIVO_SALIDA}...")
-    await texto_a_audio_gemini_tts(guion)
-    print(f"¡Proceso completado! Archivos '{ARCHIVO_SALIDA}' y '{ARCHIVO_GUION}' generados correctamente.")
+    print(f"[3/3] Sintetizando voces neurónicas a MP3 -> {ARCHIVO_SALIDA}...")
+    await texto_a_audio_dos_voces(guion)
+    print(f"¡Hito completado! Archivos '{ARCHIVO_SALIDA}' y '{ARCHIVO_GUION}' listos.")
 
 if __name__ == "__main__":
     try:
