@@ -24,13 +24,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install feedparser edge-tts google-genai
 
-      - name: 4. Ejecutar script de generación de audio
+      - name: 4. Ejecutar script de generación de audio y guion
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python main.py
 
-      - name: 5. Almacenar el archivo MP3 generado
+      - name: 5. Almacenar los archivos MP3 y TXT generados
         uses: actions/upload-artifact@v4
         with:
-          name: episodio-mp3-diario
-          path: episodio_hoy.mp3
+          name: eduradar-episodio-y-guion
+          path: |
+            episodio_hoy.mp3
+            guion_episodio.txt
+          retention-days: 7
