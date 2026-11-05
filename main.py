@@ -108,7 +108,7 @@ async def obtener_titulares() -> tuple[str, list[str]]:
     return "\n".join(bloques_texto), titulos_usados
 
 # ---------------------------------------------------------------------------
-# 3. Prompt Maestro Expresivo para "Edu-Radar"
+# 3. Prompt Maestro Expresivo para "Edu Radar"
 # ---------------------------------------------------------------------------
 
 def construir_prompt_maestro(texto_noticias: str) -> str:
@@ -121,19 +121,19 @@ Actúa como un equipo de dos periodistas y locutores profesionales de podcast so
 - SOFÍA: Presentadora principal, analítica, apasionada por las políticas educativas e inclusión.
 - ALEJANDRO: Co-presentador, dinámico, enfocado en tecnología de aprendizaje e impacto práctico.
 
-Tu objetivo es redactar un guion en formato de DIÁLOGO SUMAMENTE EXPRESIVO, NATURAL Y ENTRETENIDO para el podcast "Edu-Radar".
+Tu objetivo es redactar un guion en formato de DIÁLOGO SUMAMENTE EXPRESIVO, NATURAL Y ENTRETENIDO para el podcast "Edu Radar".
 
 TARGET DE EXTENSIÓN: Entre 750 y 950 PALABRAS (5 a 7 minutos).
 
 REGLAS DE INTENSIÓN Y EMOCIÓN EN EL GUION (PARA SÍNTESIS DE VOZ):
-1. PRONUNCIACIÓN DEL NOMBRE: Escribe SIEMPRE el nombre del podcast como `Edu-Radar` (separado con guión) para asegurar la correcta modulación fonética.
+1. PRONUNCIACIÓN DEL NOMBRE: Escribe SIEMPRE el nombre del podcast separado exactamente con un espacio como `Edu Radar` (SIN GUIÓN) para asegurar la correcta modulación fonética en español.
 2. DENSIDAD EMOCIONAL Y RITMO:
    - Usa frases cortas y directas. Evita oraciones largas de más de 15 palabras.
    - Utiliza signos de interrogación (`¿...?`) para lanzar preguntas espontáneas entre los locutores.
    - Utiliza signos de admiración (`¡...!`) para dar énfasis y entusiasmo en noticias clave.
    - Usa puntos suspensivos (`...`) antes de revelar datos importantes para simular pausas de respiración y expectativa humana.
 3. ESTRUCTURA:
-   - APERTURA: Saludo caluroso, mención de "Edu-Radar" y la fecha exacta "{fecha_hoy}".
+   - APERTURA: Saludo caluroso, mención de "Edu Radar" y la fecha exacta "{fecha_hoy}".
    - NOTICIAS: Citación explícita de la fuente oficial en cada nota.
    - CIERRE: Pregunta provocadora para la audiencia y llamada a la acción (CTA) para seguir el podcast.
 
@@ -224,8 +224,8 @@ async def texto_a_audio_dos_voces(guion_texto: str) -> None:
             voz_activa = VOZ_MASCULINA
             texto_hablado = re.sub(r"^ALEJANDRO:\s*", "", linea, flags=re.IGNORECASE)
 
-        # Reemplazo fonético preventivo
-        texto_hablado = re.sub(r"\bEduradar\b", "Edu-Radar", texto_hablado, flags=re.IGNORECASE)
+        # Reemplazo fonético estricto: forzar siempre "Edu Radar" con espacio
+        texto_hablado = re.sub(r"\bEdu-?Radar\b", "Edu Radar", texto_hablado, flags=re.IGNORECASE)
         texto_hablado = re.sub(r"[*#_`]+", "", texto_hablado)
         texto_hablado = re.sub(r"\[.*?\]|\(.*?\)", "", texto_hablado)
         texto_hablado = html.unescape(texto_hablado).strip()
