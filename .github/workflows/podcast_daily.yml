@@ -2,8 +2,9 @@ name: Generador Diario de Podcast EduPod
 
 on:
   schedule:
+    # Programación automática: Todos los días a las 06:00 AM UTC
     - cron: '0 6 * * *'
-  workflow_dispatch:
+  workflow_dispatch: # Permite ejecución manual
 
 jobs:
   procesar-podcast:
@@ -21,14 +22,14 @@ jobs:
       - name: 3. Instalar librerías necesarias
         run: |
           python -m pip install --upgrade pip
-          pip install feedparser google-genai
+          pip install feedparser edge-tts google-genai
 
       - name: 4. Ejecutar script de generación de audio expresivo
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python main.py
 
-      - name: 5. Almacenar los archivos MP3 y TXT generados (Dinamicos por fecha)
+      - name: 5. Almacenar los archivos MP3 y TXT generados (Dinámicos por fecha)
         uses: actions/upload-artifact@v4
         with:
           name: eduradar-episodio-y-guion
