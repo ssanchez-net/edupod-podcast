@@ -3,20 +3,21 @@ import sys
 import html
 import re
 import json
+import struct
+import mimetypes
 import asyncio
 from datetime import datetime
-import feedparser
-import edge_tts
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
+import feedparser
 
 # ---------------------------------------------------------------------------
-# 1. Configuración de Archivos y Fuentes
+# 1. Configuración Global y Nombres Dinámicos
 # ---------------------------------------------------------------------------
 
 FECHA_STR = datetime.now().strftime("%d%m%Y")
-ARCHIVO_SALIDA = f"episodio_ep{FECHA_STR}.mp3"
+ARCHIVO_SALIDA_WAV = f"episodio_ep{FECHA_STR}.wav"
 ARCHIVO_GUION = f"guion_ep{FECHA_STR}.txt"
 ARCHIVO_HISTORICO = "historico_noticias.json"
 
@@ -36,17 +37,11 @@ RSS_FEEDS = [
     "https://mfeldstein.com/feed/"
 ]
 
-VOZ_FEMENINA = "es-MX-DaliaNeural"   # Sofía
-VOZ_MASCULINA = "es-MX-JorgeNeural"   # Alejandro
-
-MODELOS_TEXTO = [
-    "gemini-3.8-flash",
-    "gemini-flash-latest",
-    "gemini-flash-lite-latest"
-]
+MODELO_TEXTO = "gemini-3.8-flash"
+MODELO_TTS = "gemini-3.8-flash-tts"
 
 # ---------------------------------------------------------------------------
-# 2. Control de Historico Anti-Repetición
+# 2. Manejo de Histórico Anti-Repetición
 # ---------------------------------------------------------------------------
 
 def cargar_historico() -> list[str]:
@@ -61,7 +56,6 @@ def cargar_historico() -> list[str]:
 def guardar_historico(nuevos_titulos: list[str]) -> None:
     historico = cargar_historico()
     historico.extend(nuevos_titulos)
-    # Conservar únicamente los últimos 50 títulos para mantener el archivo ligero
     historico = historico[-50:]
     with open(ARCHIVO_HISTORICO, "w", encoding="utf-8") as f:
         json.dump(historico, f, ensure_ascii=False, indent=2)
@@ -79,7 +73,6 @@ def _parsear_feed(url: str, historico: list[str]) -> list[tuple[str, str]]:
         items = []
         for entry in entradas[:3]:
             titulo = limpiar_texto(getattr(entry, "title", "Sin título"))
-            # Filtro anti-repetición: omitir si ya se usó recientemente
             if titulo in historico:
                 continue
             resumen = limpiar_texto(getattr(entry, "summary", getattr(entry, "description", "Sin resumen")))
@@ -108,7 +101,7 @@ async def obtener_titulares() -> tuple[str, list[str]]:
     return "\n".join(bloques_texto), titulos_usados
 
 # ---------------------------------------------------------------------------
-# 3. Prompt Maestro Expresivo para "Edu Radar"
+# 3. Prompt Maestro Expresivo para Gemini
 # ---------------------------------------------------------------------------
 
 def construir_prompt_maestro(texto_noticias: str) -> str:
@@ -118,28 +111,28 @@ def construir_prompt_maestro(texto_noticias: str) -> str:
 
     return f"""
 Actúa como un equipo de dos periodistas y locutores profesionales de podcast sobre educación y EdTech:
-- SOFÍA: Presentadora principal, analítica, apasionada por las políticas educativas e inclusión.
-- ALEJANDRO: Co-presentador, dinámico, enfocado en tecnología de aprendizaje e impacto práctico.
+- SOFÍA (Speaker 1): Presentadora principal, analítica, apasionada por la pedagogía e inclusión.
+- ALEJANDRO (Speaker 2): Co-presentador, dinámico, enfocado en tecnología e impacto práctico.
 
-Tu objetivo es redactar un guion en formato de DIÁLOGO SUMAMENTE EXPRESIVO, NATURAL Y ENTRETENIDO para el podcast "Edu Radar".
+Tu objetivo es redactar un guion en formato de DIÁLOGO SUMAMENTE EXPRESIVO, NATURAL Y ENTERTAINING para el podcast "Edu Radar".
 
 TARGET DE EXTENSIÓN: Entre 750 y 950 PALABRAS (5 a 7 minutos).
 
-REGLAS DE INTENSIÓN Y EMOCIÓN EN EL GUION (PARA SÍNTESIS DE VOZ):
-1. PRONUNCIACIÓN DEL NOMBRE: Escribe SIEMPRE el nombre del podcast separado exactamente con un espacio como `Edu Radar` (SIN GUIÓN) para asegurar la correcta modulación fonética en español.
-2. DENSIDAD EMOCIONAL Y RITMO:
-   - Usa frases cortas y directas. Evita oraciones largas de más de 15 palabras.
-   - Utiliza signos de interrogación (`¿...?`) para lanzar preguntas espontáneas entre los locutores.
-   - Utiliza signos de admiración (`¡...!`) para dar énfasis y entusiasmo en noticias clave.
-   - Usa puntos suspensivos (`...`) antes de revelar datos importantes para simular pausas de respiración y expectativa humana.
-3. ESTRUCTURA:
-   - APERTURA: Saludo caluroso, mención de "Edu Radar" y la fecha exacta "{fecha_hoy}".
+REGLAS EXPRESIVAS Y EMOCIONALES:
+1. PRONUNCIACIÓN DEL NOMBRE: Escribe SIEMPRE el nombre del podcast separado con espacio como `Edu Radar` (SIN GUIÓN) para garantizar la lectura correcta en español neutro.
+2. ETIQUETAS VOCALES EXPRESIVAS DE GEMINI TTS: Integra de forma fluida a lo largo del diálogo las siguientes etiquetas:
+   - `<breath>` para pausas de respiración y ritmo natural.
+   - `<chuckle>` para matices simpáticos o ligeros.
+   - `<enthusiastic>` para noticias clave, logros y entusiasmo.
+   - `<astonishment>` para datos e indicadores sorprendentes.
+3. ESTRUCTURA DEL GUION:
+   - APERTURA: Saludo directo, mención de "Edu Radar" y fecha exacta "{fecha_hoy}".
    - NOTICIAS: Citación explícita de la fuente oficial en cada nota.
-   - CIERRE: Pregunta provocadora para la audiencia y llamada a la acción (CTA) para seguir el podcast.
+   - CIERRE: Pregunta provocadora para los oyentes y llamado a la acción (CTA) para suscribirse.
 
-RESTRICCIONES ESTRICTAS:
+RESTRICCIONES DE FORMATO:
 - Cada línea DEBE comenzar estrictamente con `SOFÍA:` o `ALEJANDRO:`.
-- NO agregues acotaciones entre paréntesis o corchetes (nada de `[risas]`, `[pausa]`).
+- NO agregues acotaciones entre corchetes o paréntesis (nada de `[risas]`, `[pausa]`).
 - NO uses formato Markdown (sin asteriscos, sin encabezados `#`, sin viñetas).
 - Escribe ÚNICAMENTE el texto limpio para locución.
 
@@ -147,54 +140,22 @@ NOTICIAS FUENTE DISPONIBLES:
 {texto_noticias}
 """
 
-def _llamar_modelo(client: genai.Client, modelo: str, prompt: str) -> str:
+def _generar_texto_gemini(client: genai.Client, prompt: str) -> str:
     response = client.models.generate_content(
-        model=modelo,
+        model=MODELO_TEXTO,
         contents=prompt,
         config=types.GenerateContentConfig(temperature=0.7)
     )
     if not response.text:
-        raise ValueError("La respuesta de la API volvió vacía.")
+        raise ValueError("La respuesta del modelo de texto volvió vacía.")
     return response.text
 
-async def generar_guion(texto_noticias: str) -> str:
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no está configurada en los secretos de GitHub.")
-
-    client = genai.Client(
-        api_key=api_key,
-        http_options=types.HttpOptions(
-            timeout=120_000,
-            retry_options=types.HttpRetryOptions(attempts=3, initial_delay=3.0, max_delay=15.0)
-        )
-    )
-
+async def generar_guion(client: genai.Client, texto_noticias: str) -> str:
     prompt = construir_prompt_maestro(texto_noticias)
-    errores = []
-
-    for modelo in MODELOS_TEXTO:
-        for intento in range(1, 3):
-            print(f"   Intentando guion con modelo: {modelo} (Intento {intento}/2)...")
-            try:
-                guion_texto = await asyncio.to_thread(_llamar_modelo, client, modelo, prompt)
-                print(f"   [Éxito] Guion generado con {modelo}.")
-                return guion_texto
-            except genai_errors.APIError as e:
-                msg = f"{modelo} -> HTTP {e.code}: {e.message}"
-                print(f"   [Aviso API] {msg}")
-                errores.append(msg)
-                if e.code in (401, 403):
-                    break
-                elif e.code == 503:
-                    await asyncio.sleep(10)
-            except Exception as e:
-                msg = f"{modelo} -> {type(e).__name__}: {e}"
-                print(f"   [Error] {msg}")
-                errores.append(msg)
-                break
-
-    raise RuntimeError(f"Ningún modelo estuvo disponible. Resumen:\n" + "\n".join(errores))
+    print("   [Gemini API] Solicitando guion conversacional...")
+    guion_texto = await asyncio.to_thread(_generar_texto_gemini, client, prompt)
+    print(f"   [Éxito] Guion redactado correctamente.")
+    return guion_texto
 
 def guardar_guion_texto(guion_texto: str) -> None:
     with open(ARCHIVO_GUION, "w", encoding="utf-8") as f:
@@ -202,77 +163,180 @@ def guardar_guion_texto(guion_texto: str) -> None:
     print(f"   [OK] Guion guardado en '{ARCHIVO_GUION}'.")
 
 # ---------------------------------------------------------------------------
-# 4. Síntesis Multimóvil Expresiva (Edge-TTS)
+# 4. Síntesis Multimóvil Expresiva Nativa (Gemini 3.8 Flash TTS)
 # ---------------------------------------------------------------------------
 
-async def texto_a_audio_dos_voces(guion_texto: str) -> None:
+def parse_audio_mime_type(mime_type: str) -> dict[str, int]:
+    bits_per_sample = 16
+    rate = 24000
+    parts = mime_type.split(";")
+    for param in parts:
+        param = param.strip()
+        if param.lower().startswith("rate="):
+            try:
+                rate = int(param.split("=", 1)[1])
+            except (ValueError, IndexError):
+                pass
+        elif param.startswith("audio/L"):
+            try:
+                bits_per_sample = int(param.split("L", 1)[1])
+            except (ValueError, IndexError):
+                pass
+    return {"bits_per_sample": bits_per_sample, "rate": rate}
+
+def convert_to_wav(audio_data: bytes, mime_type: str) -> bytes:
+    parameters = parse_audio_mime_type(mime_type)
+    bits_per_sample = parameters["bits_per_sample"]
+    sample_rate = parameters["rate"]
+    num_channels = 1
+    data_size = len(audio_data)
+    bytes_per_sample = bits_per_sample // 8
+    block_align = num_channels * bytes_per_sample
+    byte_rate = sample_rate * block_align
+    chunk_size = 36 + data_size
+
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF",
+        chunk_size,
+        b"WAVE",
+        b"fmt ",
+        16,
+        1,
+        num_channels,
+        sample_rate,
+        byte_rate,
+        block_align,
+        bits_per_sample,
+        b"data",
+        data_size
+    )
+    return header + audio_data
+
+def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[bytes, str]:
     lineas = guion_texto.strip().split("\n")
-    bloques_audio = []
-    
-    for idx, linea in enumerate(lineas):
+    parts = []
+
+    for linea in lineas:
         linea = linea.strip()
         if not linea:
             continue
-            
-        voz_activa = VOZ_FEMENINA
+
+        speaker_tag = "Speaker 1"
         texto_hablado = linea
-        
+
         if linea.startswith("SOFÍA:") or linea.startswith("SOFIA:"):
-            voz_activa = VOZ_FEMENINA
+            speaker_tag = "Speaker 1"
             texto_hablado = re.sub(r"^SOFÍ?A:\s*", "", linea, flags=re.IGNORECASE)
         elif linea.startswith("ALEJANDRO:"):
-            voz_activa = VOZ_MASCULINA
+            speaker_tag = "Speaker 2"
             texto_hablado = re.sub(r"^ALEJANDRO:\s*", "", linea, flags=re.IGNORECASE)
 
-        # Reemplazo fonético estricto: forzar siempre "Edu Radar" con espacio
+        # Limpieza y forzado fonético
         texto_hablado = re.sub(r"\bEdu-?Radar\b", "Edu Radar", texto_hablado, flags=re.IGNORECASE)
-        texto_hablado = re.sub(r"[*#_`]+", "", texto_hablado)
-        texto_hablado = re.sub(r"\[.*?\]|\(.*?\)", "", texto_hablado)
         texto_hablado = html.unescape(texto_hablado).strip()
 
-        if len(texto_hablado) > 2 and re.search(r"\w", texto_hablado):
-            temp_filename = f"fragmento_{idx}.mp3"
-            try:
-                comunicador = edge_tts.Communicate(texto_hablado, voz_activa)
-                await comunicador.save(temp_filename)
-                if os.path.exists(temp_filename) and os.path.getsize(temp_filename) > 0:
-                    bloques_audio.append(temp_filename)
-            except Exception as e:
-                print(f"   [Aviso TTS] No se pudo sintetizar fragmento {idx}: {e}")
+        if texto_hablado:
+            parts.append(
+                types.Part(
+                    text=texto_hablado,
+                    speech_metadata=types.SpeechMetadata(speaker=speaker_tag)
+                )
+            )
 
-    if not bloques_audio:
-        raise ValueError("No se generó ningún bloque de audio válido para concatenar.")
+    contents = [types.Content(role="user", parts=parts)]
 
-    with open(ARCHIVO_SALIDA, "wb") as outfile:
-        for temp_file in bloques_audio:
-            if os.path.exists(temp_file):
-                with open(temp_file, "rb") as infile:
-                    outfile.write(infile.read())
-                os.remove(temp_file)
+    generate_content_config = types.GenerateContentConfig(
+        temperature=1.0,
+        response_modalities=["audio"],
+        speech_config=types.SpeechConfig(
+            multi_speaker_voice_config=types.MultiSpeakerVoiceConfig(
+                mode="VERBATIM",
+                speaker_voice_configs=[
+                    types.SpeakerVoiceConfig(
+                        speaker="Speaker 1",
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Jori")
+                        )
+                    ),
+                    types.SpeakerVoiceConfig(
+                        speaker="Speaker 2",
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Rami")
+                        )
+                    ),
+                ]
+            )
+        )
+    )
+
+    audio_data = bytearray()
+    mime_type = ""
+
+    for chunk in client.models.generate_content_stream(
+        model=MODELO_TTS,
+        contents=contents,
+        config=generate_content_config,
+    ):
+        if chunk.parts is None:
+            continue
+        if chunk.parts[0].inline_data and chunk.parts[0].inline_data.data:
+            inline_data = chunk.parts[0].inline_data
+            audio_data.extend(inline_data.data)
+            mime_type = inline_data.mime_type
+
+    if not audio_data:
+        raise ValueError("No se recibieron datos de audio desde el modelo Gemini TTS.")
+
+    data_buffer = bytes(audio_data)
+    file_extension = mimetypes.guess_extension(mime_type)
+    if file_extension is None or not mime_type.startswith("audio/wav"):
+        data_buffer = convert_to_wav(bytes(audio_data), mime_type)
+
+    return data_buffer, ARCHIVO_SALIDA_WAV
+
+async def generar_audio_expresivo(client: genai.Client, guion_texto: str) -> None:
+    print("   [Gemini TTS] Generando audio multimóvil a dos voces (Jori y Rami)...")
+    data_buffer, nombre_archivo = await asyncio.to_thread(_sintetizar_audio_multivoz, client, guion_texto)
+    
+    with open(nombre_archivo, "wb") as f:
+        f.write(data_buffer)
+    print(f"   [Éxito] Archivo de audio guardado en '{nombre_archivo}'.")
 
 # ---------------------------------------------------------------------------
 # Pipeline Principal
 # ---------------------------------------------------------------------------
 
 async def ejecutar_pipeline() -> None:
-    print(f"[1/3] Obteniendo noticias RSS para el episodio {FECHA_STR} (Con filtro anti-repetición)...")
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no está configurada en los secretos de GitHub.")
+
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            timeout=180_000,
+            retry_options=types.HttpRetryOptions(attempts=3, initial_delay=3.0, max_delay=15.0)
+        )
+    )
+
+    print(f"[1/3] Obteniendo noticias RSS para el episodio {FECHA_STR}...")
     noticias, titulos_usados = await obtener_titulares()
 
-    print("[2/3] Generando guion conversacional expresivo con Gemini API...")
-    guion = await generar_guion(noticias)
+    print("[2/3] Generando guion expresivo con Gemini API...")
+    guion = await generar_guion(client, noticias)
     guardar_guion_texto(guion)
     
-    # Registrar las noticias elegidas en el histórico
     if titulos_usados:
         guardar_historico(titulos_usados)
 
     palabras = len(guion.split())
     minutos_estimados = round(palabras / 140, 1)
-    print(f"   Guion redactado con éxito ({palabras} palabras, aprox. {minutos_estimados} minutos de audio).")
+    print(f"   Guion redactado ({palabras} palabras, aprox. {minutos_estimados} min).")
 
-    print(f"[3/3] Sintetizando voces neurónicas a MP3 -> {ARCHIVO_SALIDA}...")
-    await texto_a_audio_dos_voces(guion)
-    print(f"¡Hito completado! Archivos '{ARCHIVO_SALIDA}' y '{ARCHIVO_GUION}' listos.")
+    print(f"[3/3] Sintetizando audio expresivo (Gemini 3.8 Flash TTS) -> {ARCHIVO_SALIDA_WAV}...")
+    await generar_audio_expresivo(client, guion)
+    print(f"¡Proceso completado! Archivos '{ARCHIVO_SALIDA_WAV}' y '{ARCHIVO_GUION}' generados correctamente.")
 
 if __name__ == "__main__":
     try:
