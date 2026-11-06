@@ -131,7 +131,7 @@ REGLAS EXPRESIVAS Y EMOCIONALES:
    - CIERRE: Pregunta provocadora para los oyentes y llamado a la acción (CTA) para suscribirse.
 
 RESTRICCIONES DE FORMATO:
-- Cada línea DEBE comenzar estrictamente con `SOFÍA:` o `ALEJANDRO:`.
+- Cada línea DEBE comenzar strictly con `SOFÍA:` o `ALEJANDRO:`.
 - NO agregues acotaciones entre corchetes o paréntesis (nada de `[risas]`, `[pausa]`).
 - NO uses formato Markdown (sin asteriscos, sin encabezados `#`, sin viñetas).
 - Escribe ÚNICAMENTE el texto limpio para locución.
@@ -246,12 +246,12 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
 
     contents = [types.Content(role="user", parts=parts)]
 
+    # Configuración de voz multilocutor estandarizada (sin parámetro innecesario mode)
     generate_content_config = types.GenerateContentConfig(
         temperature=1.0,
         response_modalities=["audio"],
         speech_config=types.SpeechConfig(
             multi_speaker_voice_config=types.MultiSpeakerVoiceConfig(
-                mode="VERBATIM",
                 speaker_voice_configs=[
                     types.SpeakerVoiceConfig(
                         speaker="Speaker 1",
