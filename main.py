@@ -12,14 +12,26 @@ from google.genai import errors as genai_errors
 from google.genai import types
 import feedparser
 
+# Importación para mezcla de audio (Cortinillas y Música de Fondo)
+try:
+    from pydub import AudioSegment
+except ImportError:
+    AudioSegment = None
+
 # ---------------------------------------------------------------------------
 # 1. Configuración Global y Nombres Dinámicos
 # ---------------------------------------------------------------------------
 
 FECHA_STR = datetime.now().strftime("%d%m%Y")
-ARCHIVO_SALIDA_WAV = f"episodio_ep{FECHA_STR}.wav"
+ARCHIVO_VOZ_WAV = f"voz_raw_{FECHA_STR}.wav"
+ARCHIVO_SALIDA_FINAL = f"episodio_ep{FECHA_STR}.mp3"
 ARCHIVO_GUION = f"guion_ep{FECHA_STR}.txt"
 ARCHIVO_HISTORICO = "historico_noticias.json"
+
+# Archivos multimedia opcionales (colocar en la raíz del repositorio)
+ARCHIVO_INTRO = "intro.mp3"
+ARCHIVO_OUTRO = "outro.mp3"
+ARCHIVO_FONDO = "musica_fondo.mp3"
 
 RSS_FEEDS = [
     "https://www.unesco.org/en/rss/news/field_topic/education-38",
@@ -41,7 +53,7 @@ MODELO_TEXTO = "gemini-3.8-flash"
 MODELO_TTS = "gemini-3.8-flash-tts"
 
 # ---------------------------------------------------------------------------
-# 2. Manejo de Histórico Anti-Repetición
+# 2. Control de Histórico Anti-Repetición
 # ---------------------------------------------------------------------------
 
 def cargar_historico() -> list[str]:
@@ -56,7 +68,7 @@ def cargar_historico() -> list[str]:
 def guardar_historico(nuevos_titulos: list[str]) -> None:
     historico = cargar_historico()
     historico.extend(nuevos_titulos)
-    historico = historico[-50:]
+    historico = historico[-100:]
     with open(ARCHIVO_HISTORICO, "w", encoding="utf-8") as f:
         json.dump(historico, f, ensure_ascii=False, indent=2)
 
@@ -118,21 +130,23 @@ Tu objetivo es redactar un guion en formato de DIÁLOGO SUMAMENTE EXPRESIVO, NAT
 
 TARGET DE EXTENSIÓN: Entre 750 y 950 PALABRAS (5 a 7 minutos).
 
-REGLAS EXPRESIVAS Y EMOCIONALES:
+REGLAS DE FORMATO Y EXPRESIVIDAD:
 1. PRONUNCIACIÓN DEL NOMBRE: Escribe SIEMPRE el nombre del podcast separado con espacio como `Edu Radar` (SIN GUIÓN) para garantizar la lectura correcta en español neutro.
-2. ETIQUETAS VOCALES EXPRESIVAS DE GEMINI TTS: Integra de forma fluida a lo largo del diálogo las siguientes etiquetas:
-   - `<breath>` para pausas de respiración y ritmo natural.
-   - `<chuckle>` para matices simpáticos o ligeros.
-   - `<enthusiastic>` para noticias clave, logros y entusiasmo.
-   - `<astonishment>` para datos e indicadores sorprendentes.
-3. ESTRUCTURA DEL GUION:
+2. ETIQUETAS VOCALES VARIADAS: Integra de forma equilibrada a lo largo del guion las siguientes acotaciones expresivas:
+   - `<breath>` (pausas de respiración).
+   - `<chuckle>` (matices simpáticos o ligeros).
+   - `<enthusiastic>` (noticias clave y logros).
+   - `<astonishment>` (datos e indicadores sorprendentes).
+   - `<sigh>` (reflexiones profundas sobre brechas o problemas).
+3. ESTRUCTURA Y CIERRE:
    - APERTURA: Saludo directo, mención de "Edu Radar" y fecha exacta "{fecha_hoy}".
-   - NOTICIAS: Citación explícita de la fuente oficial en cada nota.
-   - CIERRE: Pregunta provocadora para los oyentes y llamado a la acción (CTA) para suscribirse.
+   - DESARROLLO: Atribución explícita a la fuente oficial en cada nota.
+   - CIERRE: Pregunta provocadora para los oyentes, llamado a la acción (CTA) para suscribirse y despedida con la frase: "¡Hasta la próxima emisión de Edu Radar!".
 
-RESTRICCIONES DE FORMATO:
-- Cada línea DEBE comenzar strictly con `SOFÍA:` o `ALEJANDRO:`.
-- NO agregues acotaciones entre corchetes o paréntesis (nada de `[risas]`, `[pausa]`).
+RESTRICCIONES ESTRICTAS:
+- Cada intervención DEBE iniciar obligatoriamente con `SOFÍA:` o `ALEJANDRO:`.
+- NO intercales roles. Asegúrate de que las réplicas sigan una secuencia lógica entre Sofía y Alejandro.
+- NO agregues acotaciones entre corchetes rectos `[...]`.
 - NO uses formato Markdown (sin asteriscos, sin encabezados `#`, sin viñetas).
 - Escribe ÚNICAMENTE el texto limpio para locución.
 
@@ -246,7 +260,6 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
 
     contents = [types.Content(role="user", parts=parts)]
 
-    # Configuración de voz multilocutor estandarizada (sin parámetro innecesario mode)
     generate_content_config = types.GenerateContentConfig(
         temperature=1.0,
         response_modalities=["audio"],
@@ -293,15 +306,54 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
     if file_extension is None or not mime_type.startswith("audio/wav"):
         data_buffer = convert_to_wav(bytes(audio_data), mime_type)
 
-    return data_buffer, ARCHIVO_SALIDA_WAV
+    return data_buffer, ARCHIVO_VOZ_WAV
 
-async def generar_audio_expresivo(client: genai.Client, guion_texto: str) -> None:
-    print("   [Gemini TTS] Generando audio multimóvil a dos voces (Jori y Rami)...")
-    data_buffer, nombre_archivo = await asyncio.to_thread(_sintetizar_audio_multivoz, client, guion_texto)
-    
-    with open(nombre_archivo, "wb") as f:
-        f.write(data_buffer)
-    print(f"   [Éxito] Archivo de audio guardado en '{nombre_archivo}'.")
+# ---------------------------------------------------------------------------
+# 5. Mezcla de Audio Profesional (Cortinillas y Música de Fondo)
+# ---------------------------------------------------------------------------
+
+def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
+    if AudioSegment is None:
+        print("   [Aviso] pydub no está disponible. Se conservará el archivo de voz sin cortinillas.")
+        os.rename(archivo_voz, archivo_salida)
+        return
+
+    print("   [Audio Post-Procesamiento] Ensamblando cortinillas y música de fondo...")
+    voz_segment = AudioSegment.from_file(archivo_voz)
+
+    # 1. Superposición de música de fondo (si se proporciona 'musica_fondo.mp3')
+    if os.path.exists(ARCHIVO_FONDO):
+        print(f"   [Mezcla] Añadiendo música de fondo desde '{ARCHIVO_FONDO}'...")
+        fondo = AudioSegment.from_file(ARCHIVO_FONDO)
+        # Atenuar la música de fondo -20dB para dar prioridad a la voz
+        fondo = fondo - 20
+        # Bucle de la música si es más corta que la locución
+        if len(fondo) < len(voz_segment):
+            repetir = (len(voz_segment) // len(fondo)) + 1
+            fondo = fondo * repetir
+        fondo = fondo[:len(voz_segment)].fade_out(3000)
+        voz_segment = voz_segment.overlay(fondo)
+
+    # 2. Concatena Intro al inicio (si existe 'intro.mp3')
+    audio_final = AudioSegment.empty()
+    if os.path.exists(ARCHIVO_INTRO):
+        print(f"   [Mezcla] Añadiendo cortinilla de inicio '{ARCHIVO_INTRO}'...")
+        intro = AudioSegment.from_file(ARCHIVO_INTRO)
+        audio_final += intro
+
+    audio_final += voz_segment
+
+    # 3. Concatena Outro al final (si existe 'outro.mp3')
+    if os.path.exists(ARCHIVO_OUTRO):
+        print(f"   [Mezcla] Añadiendo cortinilla de cierre '{ARCHIVO_OUTRO}'...")
+        outro = AudioSegment.from_file(ARCHIVO_OUTRO)
+        audio_final += outro
+
+    # Exportar archivo final en MP3
+    audio_final.export(archivo_salida, format="mp3", bitrate="192k")
+    if os.path.exists(archivo_voz):
+        os.remove(archivo_voz)
+    print(f"   [OK] Episodio masterizado guardado en '{archivo_salida}'.")
 
 # ---------------------------------------------------------------------------
 # Pipeline Principal
@@ -334,9 +386,13 @@ async def ejecutar_pipeline() -> None:
     minutos_estimados = round(palabras / 140, 1)
     print(f"   Guion redactado ({palabras} palabras, aprox. {minutos_estimados} min).")
 
-    print(f"[3/3] Sintetizando audio expresivo (Gemini 3.8 Flash TTS) -> {ARCHIVO_SALIDA_WAV}...")
-    await generar_audio_expresivo(client, guion)
-    print(f"¡Proceso completado! Archivos '{ARCHIVO_SALIDA_WAV}' y '{ARCHIVO_GUION}' generados correctamente.")
+    print(f"[3/3] Sintetizando audio expresivo (Gemini 3.8 Flash TTS)...")
+    data_buffer, nombre_archivo_raw = await asyncio.to_thread(_sintetizar_audio_multivoz, client, guion)
+    with open(nombre_archivo_raw, "wb") as f:
+        f.write(data_buffer)
+
+    mezclar_audio_final(nombre_archivo_raw, ARCHIVO_SALIDA_FINAL)
+    print(f"¡Proceso completado! Archivos '{ARCHIVO_SALIDA_FINAL}' y '{ARCHIVO_GUION}' generados correctamente.")
 
 if __name__ == "__main__":
     try:
