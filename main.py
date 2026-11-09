@@ -28,7 +28,7 @@ ARCHIVO_SALIDA_FINAL = f"episodio_ep{FECHA_STR}.mp3"
 ARCHIVO_GUION = f"guion_ep{FECHA_STR}.txt"
 ARCHIVO_HISTORICO = "historico_noticias.json"
 
-# Archivos multimedia opcionales (colocados en la raíz del repositorio)
+# Archivos multimedia opcionales (ubicados en la raíz del repositorio)
 ARCHIVO_INTRO = "intro.mp3"
 ARCHIVO_OUTRO = "outro.mp3"
 ARCHIVO_FONDO = "musica_fondo.mp3"
@@ -155,10 +155,15 @@ NOTICIAS FUENTE DISPONIBLES:
 """
 
 def _generar_texto_gemini(client: genai.Client, prompt: str) -> str:
+    # Aumentar el tiempo límite a 300 segundos (5 minutos) y acotar max_output_tokens
     response = client.models.generate_content(
         model=MODELO_TEXTO,
         contents=prompt,
-        config=types.GenerateContentConfig(temperature=0.7)
+        config=types.GenerateContentConfig(
+            temperature=0.7,
+            max_output_tokens=2500
+        ),
+        http_options=types.HttpOptions(timeout=300_000)
     )
     if not response.text:
         raise ValueError("La respuesta del modelo de texto volvió vacía.")
@@ -168,7 +173,7 @@ async def generar_guion(client: genai.Client, texto_noticias: str) -> str:
     prompt = construir_prompt_maestro(texto_noticias)
     print("   [Gemini API] Solicitando guion conversacional...")
     guion_texto = await asyncio.to_thread(_generar_texto_gemini, client, prompt)
-    print(f"   [Éxito] Guion redactado correctamente.")
+    print("   [Éxito] Guion redactado correctamente.")
     return guion_texto
 
 def guardar_guion_texto(guion_texto: str) -> None:
@@ -177,7 +182,7 @@ def guardar_guion_texto(guion_texto: str) -> None:
     print(f"   [OK] Guion guardado en '{ARCHIVO_GUION}'.")
 
 # ---------------------------------------------------------------------------
-# 4. Síntesis Multimóvil Expresiva Nativa (Gemini 3.8 Flash TTS)
+# 4. Síntesis Multivoz Expresiva Nativa (Gemini 3.8 Flash TTS)
 # ---------------------------------------------------------------------------
 
 def parse_audio_mime_type(mime_type: str) -> dict[str, int]:
@@ -309,8 +314,6 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
 
 async def generar_audio_expresivo(client: genai.Client, guion_texto: str) -> tuple[bytes, str]:
     print("   [Gemini TTS] Generando audio multimóvil a dos voces (Jori y Rami)...")
-    
-    # Manejo de reintentos para mitigar errores HTTP 503 (High Demand Spikes)
     for intento in range(1, 4):
         try:
             return await asyncio.to_thread(_sintetizar_audio_multivoz, client, guion_texto)
