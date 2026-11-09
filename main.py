@@ -113,7 +113,7 @@ async def obtener_titulares() -> tuple[str, list[str]]:
     return "\n".join(bloques_texto), titulos_usados
 
 # ---------------------------------------------------------------------------
-# 3. Prompt Maestro Expresivo para Gemini
+# 3. Prompt Maestro Expresivo para Gemini (Estilo Vocal Cálido y Friendly)
 # ---------------------------------------------------------------------------
 
 def construir_prompt_maestro(texto_noticias: str) -> str:
@@ -123,16 +123,16 @@ def construir_prompt_maestro(texto_noticias: str) -> str:
 
     return f"""
 Actúa como un equipo de dos periodistas y locutores profesionales de podcast sobre educación y EdTech:
-- SOFÍA (Speaker 1): Presentadora principal, analítica, apasionada por la pedagogía e inclusión.
-- ALEJANDRO (Speaker 2): Co-presentador, dinámico, enfocado en tecnología e impacto práctico.
+- SOFÍA (Speaker 1): Presentadora principal, analítica, apasionada por la pedagogía e inclusión. Tono de locución: Friendly, amigable, cálido y articulado.
+- ALEJANDRO (Speaker 2): Co-presentador, dinámico, enfocado en tecnología e impacto práctico. Tono de locución: Friendly, cercano, empático y profesional.
 
-Tu objetivo es redactar un guion COMPLETO Y COMPLETO en formato de DIÁLOGO SUMAMENTE EXPRESIVO, NATURAL Y ENTERTAINING para el podcast "Edu Radar".
+Tu objetivo es redactar un guion COMPLETO en formato de DIÁLOGO CÁLIDO, NATURAL Y SUMAMENTE ENTERTAINING para el podcast "Edu Radar".
 
-TARGET DE EXTENSIÓN: Entre 750 y 950 PALABRAS (5 a 7 minutos de duración hablada).
+TARGET DE EXTENSIÓN: Entre 750 y 950 PALABRAS (5 a 7 minutos de locución).
 
 REGLAS DE FORMATO Y EXPRESIVIDAD:
 1. PRONUNCIACIÓN DEL NOMBRE: Escribe SIEMPRE el nombre del podcast separado con espacio como `Edu Radar` (SIN GUIÓN) para garantizar la lectura correcta en español neutro.
-2. ETIQUETAS VOCALES VARIADAS: Integra de forma equilibrada a lo largo del guion las siguientes acotaciones expresivas:
+2. ESTILO Y ETIQUETAS VOCALES: Utiliza un estilo de voz "Friendly" (entrega cálida y neutra con micro-pausas). Integra de forma natural las siguientes marcas expresivas:
    - `<breath>` (pausas de respiración).
    - `<chuckle>` (matices simpáticos o ligeros).
    - `<enthusiastic>` (noticias clave y logros).
@@ -140,8 +140,8 @@ REGLAS DE FORMATO Y EXPRESIVIDAD:
    - `<sigh>` (reflexiones profundas sobre brechas o problemas).
 3. ESTRUCTURA OBLIGATORIA COMPLETA:
    - APERTURA: Saludo directo, mención de "Edu Radar" y fecha exacta "{fecha_hoy}".
-   - DESARROLLO: Análisis exhaustivo de las noticias disponibles, asignando turnos fluidos entre Sofía y Alejandro con atribución a las fuentes oficiales.
-   - CIERRE: Pregunta provocadora para los oyentes, llamado a la acción (CTA) para suscribirse y despedida final con la frase exacta: "¡Hasta la próxima emisión de Edu Radar!".
+   - DESARROLLO: Análisis fluido de las noticias disponibles, asignando turnos secuenciales entre Sofía y Alejandro con atribución explicita a las fuentes oficiales.
+   - CIERRE: Pregunta provocadora para la audiencia, llamado a la acción (CTA) para suscribirse y despedida final con la frase exacta: "¡Hasta la próxima emisión de Edu Radar!".
 
 RESTRICCIONES ESTRICTAS:
 - Cada intervención DEBE iniciar obligatoriamente con `SOFÍA:` o `ALEJANDRO:`.
@@ -155,7 +155,6 @@ NOTICIAS FUENTE DISPONIBLES:
 """
 
 def _generar_texto_gemini(client: genai.Client, prompt: str) -> str:
-    # Eliminamos restricciones de max_output_tokens para evitar truncación del guion
     response = client.models.generate_content(
         model=MODELO_TEXTO,
         contents=prompt,
@@ -180,7 +179,7 @@ def guardar_guion_texto(guion_texto: str) -> None:
     print(f"   [OK] Guion guardado en '{ARCHIVO_GUION}'.")
 
 # ---------------------------------------------------------------------------
-# 4. Síntesis Multivoz Expresiva Nativa (Gemini 3.8 Flash TTS)
+# 4. Síntesis Multivoz Expresiva (Sofía = Jori, Alejandro = Rami)
 # ---------------------------------------------------------------------------
 
 def parse_audio_mime_type(mime_type: str) -> dict[str, int]:
@@ -262,6 +261,7 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
 
     contents = [types.Content(role="user", parts=parts)]
 
+    # Fijación permanente de voces: Sofía (Speaker 1) = Jori | Alejandro (Speaker 2) = Rami
     generate_content_config = types.GenerateContentConfig(
         temperature=1.0,
         response_modalities=["audio"],
@@ -311,7 +311,7 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
     return data_buffer, ARCHIVO_VOZ_WAV
 
 async def generar_audio_expresivo(client: genai.Client, guion_texto: str) -> tuple[bytes, str]:
-    print("   [Gemini TTS] Generando audio multimóvil a dos voces (Jori y Rami)...")
+    print("   [Gemini TTS] Generando audio multimóvil a dos voces (Sofía=Jori, Alejandro=Rami)...")
     for intento in range(1, 4):
         try:
             return await asyncio.to_thread(_sintetizar_audio_multivoz, client, guion_texto)
@@ -329,7 +329,7 @@ async def generar_audio_expresivo(client: genai.Client, guion_texto: str) -> tup
                 raise e
 
 # ---------------------------------------------------------------------------
-# 5. Mezcla de Audio Profesional (Transiciones de 3s y Ajuste de Volumen)
+# 5. Mezcla de Audio Profesional (Transiciones de 3s y Ajuste de Volumen -12dB)
 # ---------------------------------------------------------------------------
 
 def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
@@ -340,89 +340,14 @@ def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
 
     print("   [Audio Post-Procesamiento] Ensamblando cortinillas y música de fondo...")
     voz_segment = AudioSegment.from_file(archivo_voz)
-    DURACION_FADE_MS = 3000  # Transición suave de 3 segundos (3000 ms)
+    DURACION_FADE_MS = 3000
 
-    # 1. Superposición de música de fondo (subida de volumen a -12dB con fades de 3s)
     if os.path.exists(ARCHIVO_FONDO):
         print(f"   [Mezcla] Añadiendo música de fondo desde '{ARCHIVO_FONDO}' (-12dB con 3s fade)...")
         fondo = AudioSegment.from_file(ARCHIVO_FONDO)
-        # Ajuste de volumen: -12 dB (más audible que el nivel anterior de -20 dB)
         fondo = fondo - 12
         if len(fondo) < len(voz_segment):
             repetir = (len(voz_segment) // len(fondo)) + 1
             fondo = fondo * repetir
         
-        # Aplicación de Fade In y Fade Out gradual de 3 segundos a la música de fondo
         fondo = fondo[:len(voz_segment)].fade_in(DURACION_FADE_MS).fade_out(DURACION_FADE_MS)
-        voz_segment = voz_segment.overlay(fondo)
-
-    # 2. Concatena Intro al inicio con transición progresiva (Crossfade de 3s)
-    audio_final = AudioSegment.empty()
-    if os.path.exists(ARCHIVO_INTRO):
-        print(f"   [Mezcla] Añadiendo cortinilla de inicio '{ARCHIVO_INTRO}' con fade out...")
-        intro = AudioSegment.from_file(ARCHIVO_INTRO)
-        # Fade out de 3s al final de la intro para suavizar el empalme con el diálogo
-        intro = intro.fade_out(DURACION_FADE_MS)
-        audio_final += intro
-
-    audio_final += voz_segment
-
-    # 3. Concatena Outro al final con entrada progresiva (Fade in de 3s)
-    if os.path.exists(ARCHIVO_OUTRO):
-        print(f"   [Mezcla] Añadiendo cortinilla de cierre '{ARCHIVO_OUTRO}' con fade in...")
-        outro = AudioSegment.from_file(ARCHIVO_OUTRO)
-        # Fade in de 3s al inicio del outro para evitar entrada abrupta tras el diálogo
-        outro = outro.fade_in(DURACION_FADE_MS)
-        audio_final += outro
-
-    # Exportar archivo final en MP3
-    audio_final.export(archivo_salida, format="mp3", bitrate="192k")
-    if os.path.exists(archivo_voz):
-        os.remove(archivo_voz)
-    print(f"   [OK] Episodio masterizado guardado en '{archivo_salida}'.")
-
-# ---------------------------------------------------------------------------
-# Pipeline Principal
-# ---------------------------------------------------------------------------
-
-async def ejecutar_pipeline() -> None:
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no está configurada en los secretos de GitHub.")
-
-    client = genai.Client(
-        api_key=api_key,
-        http_options=types.HttpOptions(
-            timeout=300_000,
-            retry_options=types.HttpRetryOptions(attempts=3, initial_delay=3.0, max_delay=15.0)
-        )
-    )
-
-    print(f"[1/3] Obteniendo noticias RSS para el episodio {FECHA_STR}...")
-    noticias, titulos_usados = await obtener_titulares()
-
-    print("[2/3] Generando guion expresivo con Gemini API...")
-    guion = await generar_guion(client, noticias)
-    guardar_guion_texto(guion)
-    
-    if titulos_usados:
-        guardar_historico(titulos_usados)
-
-    palabras = len(guion.split())
-    minutos_estimados = round(palabras / 140, 1)
-    print(f"   Guion redactado ({palabras} palabras, aprox. {minutos_estimados} min).")
-
-    print(f"[3/3] Sintetizando audio expresivo (Gemini 3.8 Flash TTS)...")
-    data_buffer, nombre_archivo_raw = await generar_audio_expresivo(client, guion)
-    with open(nombre_archivo_raw, "wb") as f:
-        f.write(data_buffer)
-
-    mezclar_audio_final(nombre_archivo_raw, ARCHIVO_SALIDA_FINAL)
-    print(f"¡Proceso completado! Archivos '{ARCHIVO_SALIDA_FINAL}' y '{ARCHIVO_GUION}' generados correctamente.")
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(ejecutar_pipeline())
-    except Exception as e:
-        print(f"::error title=Fallo del Pipeline::{e}")
-        sys.exit(1)
