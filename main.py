@@ -126,9 +126,9 @@ Actúa como un equipo de dos periodistas y locutores profesionales de podcast so
 - SOFÍA (Speaker 1): Presentadora principal, analítica, apasionada por la pedagogía e inclusión.
 - ALEJANDRO (Speaker 2): Co-presentador, dinámico, enfocado en tecnología e impacto práctico.
 
-Tu objetivo es redactar un guion en formato de DIÁLOGO SUMAMENTE EXPRESIVO, NATURAL Y ENTERTAINING para el podcast "Edu Radar".
+Tu objetivo es redactar un guion COMPLETO Y COMPLETO en formato de DIÁLOGO SUMAMENTE EXPRESIVO, NATURAL Y ENTERTAINING para el podcast "Edu Radar".
 
-TARGET DE EXTENSIÓN: Entre 750 y 950 PALABRAS (5 a 7 minutos).
+TARGET DE EXTENSIÓN: Entre 750 y 950 PALABRAS (5 a 7 minutos de duración hablada).
 
 REGLAS DE FORMATO Y EXPRESIVIDAD:
 1. PRONUNCIACIÓN DEL NOMBRE: Escribe SIEMPRE el nombre del podcast separado con espacio como `Edu Radar` (SIN GUIÓN) para garantizar la lectura correcta en español neutro.
@@ -138,29 +138,29 @@ REGLAS DE FORMATO Y EXPRESIVIDAD:
    - `<enthusiastic>` (noticias clave y logros).
    - `<astonishment>` (datos e indicadores sorprendentes).
    - `<sigh>` (reflexiones profundas sobre brechas o problemas).
-3. ESTRUCTURA Y CIERRE:
+3. ESTRUCTURA OBLIGATORIA COMPLETA:
    - APERTURA: Saludo directo, mención de "Edu Radar" y fecha exacta "{fecha_hoy}".
-   - DESARROLLO: Atribución explícita a la fuente oficial en cada nota.
-   - CIERRE: Pregunta provocadora para los oyentes, llamado a la acción (CTA) para suscribirse y despedida con la frase: "¡Hasta la próxima emisión de Edu Radar!".
+   - DESARROLLO: Análisis exhaustivo de las noticias disponibles, asignando turnos fluidos entre Sofía y Alejandro con atribución a las fuentes oficiales.
+   - CIERRE: Pregunta provocadora para los oyentes, llamado a la acción (CTA) para suscribirse y despedida final con la frase exacta: "¡Hasta la próxima emisión de Edu Radar!".
 
 RESTRICCIONES ESTRICTAS:
 - Cada intervención DEBE iniciar obligatoriamente con `SOFÍA:` o `ALEJANDRO:`.
-- NO intercales roles. Asegúrate de que las réplicas sigan una secuencia lógica entre Sofía y Alejandro.
+- NO intercales roles en la misma línea.
 - NO agregues acotaciones entre corchetes rectos `[...]`.
 - NO uses formato Markdown (sin asteriscos, sin encabezados `#`, sin viñetas).
-- Escribe ÚNICAMENTE el texto limpio para locución.
+- NUNCA trunques la respuesta. Escribe el guion completo de principio a fin.
 
 NOTICIAS FUENTE DISPONIBLES:
 {texto_noticias}
 """
 
 def _generar_texto_gemini(client: genai.Client, prompt: str) -> str:
+    # Eliminamos restricciones de max_output_tokens para evitar truncación del guion
     response = client.models.generate_content(
         model=MODELO_TEXTO,
         contents=prompt,
         config=types.GenerateContentConfig(
-            temperature=0.7,
-            max_output_tokens=2500
+            temperature=0.7
         )
     )
     if not response.text:
@@ -329,7 +329,7 @@ async def generar_audio_expresivo(client: genai.Client, guion_texto: str) -> tup
                 raise e
 
 # ---------------------------------------------------------------------------
-# 5. Mezcla de Audio Profesional (Cortinillas y Música de Fondo)
+# 5. Mezcla de Audio Profesional (Transiciones de 3s y Ajuste de Volumen)
 # ---------------------------------------------------------------------------
 
 def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
@@ -340,30 +340,42 @@ def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
 
     print("   [Audio Post-Procesamiento] Ensamblando cortinillas y música de fondo...")
     voz_segment = AudioSegment.from_file(archivo_voz)
+    DURACION_FADE_MS = 3000  # Transición suave de 3 segundos (3000 ms)
 
+    # 1. Superposición de música de fondo (subida de volumen a -12dB con fades de 3s)
     if os.path.exists(ARCHIVO_FONDO):
-        print(f"   [Mezcla] Añadiendo música de fondo desde '{ARCHIVO_FONDO}'...")
+        print(f"   [Mezcla] Añadiendo música de fondo desde '{ARCHIVO_FONDO}' (-12dB con 3s fade)...")
         fondo = AudioSegment.from_file(ARCHIVO_FONDO)
-        fondo = fondo - 20
+        # Ajuste de volumen: -12 dB (más audible que el nivel anterior de -20 dB)
+        fondo = fondo - 12
         if len(fondo) < len(voz_segment):
             repetir = (len(voz_segment) // len(fondo)) + 1
             fondo = fondo * repetir
-        fondo = fondo[:len(voz_segment)].fade_out(3000)
+        
+        # Aplicación de Fade In y Fade Out gradual de 3 segundos a la música de fondo
+        fondo = fondo[:len(voz_segment)].fade_in(DURACION_FADE_MS).fade_out(DURACION_FADE_MS)
         voz_segment = voz_segment.overlay(fondo)
 
+    # 2. Concatena Intro al inicio con transición progresiva (Crossfade de 3s)
     audio_final = AudioSegment.empty()
     if os.path.exists(ARCHIVO_INTRO):
-        print(f"   [Mezcla] Añadiendo cortinilla de inicio '{ARCHIVO_INTRO}'...")
+        print(f"   [Mezcla] Añadiendo cortinilla de inicio '{ARCHIVO_INTRO}' con fade out...")
         intro = AudioSegment.from_file(ARCHIVO_INTRO)
+        # Fade out de 3s al final de la intro para suavizar el empalme con el diálogo
+        intro = intro.fade_out(DURACION_FADE_MS)
         audio_final += intro
 
     audio_final += voz_segment
 
+    # 3. Concatena Outro al final con entrada progresiva (Fade in de 3s)
     if os.path.exists(ARCHIVO_OUTRO):
-        print(f"   [Mezcla] Añadiendo cortinilla de cierre '{ARCHIVO_OUTRO}'...")
+        print(f"   [Mezcla] Añadiendo cortinilla de cierre '{ARCHIVO_OUTRO}' con fade in...")
         outro = AudioSegment.from_file(ARCHIVO_OUTRO)
+        # Fade in de 3s al inicio del outro para evitar entrada abrupta tras el diálogo
+        outro = outro.fade_in(DURACION_FADE_MS)
         audio_final += outro
 
+    # Exportar archivo final en MP3
     audio_final.export(archivo_salida, format="mp3", bitrate="192k")
     if os.path.exists(archivo_voz):
         os.remove(archivo_voz)
@@ -378,7 +390,6 @@ async def ejecutar_pipeline() -> None:
     if not api_key:
         raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no está configurada en los secretos de GitHub.")
 
-    # Configuración de timeout global en el cliente (300 segundos = 5 minutos)
     client = genai.Client(
         api_key=api_key,
         http_options=types.HttpOptions(
