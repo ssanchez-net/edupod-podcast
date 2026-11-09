@@ -28,7 +28,7 @@ ARCHIVO_SALIDA_FINAL = f"episodio_ep{FECHA_STR}.mp3"
 ARCHIVO_GUION = f"guion_ep{FECHA_STR}.txt"
 ARCHIVO_HISTORICO = "historico_noticias.json"
 
-# Archivos multimedia opcionales (colocar en la raíz del repositorio)
+# Archivos multimedia opcionales (colocados en la raíz del repositorio)
 ARCHIVO_INTRO = "intro.mp3"
 ARCHIVO_OUTRO = "outro.mp3"
 ARCHIVO_FONDO = "musica_fondo.mp3"
@@ -246,7 +246,6 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
             speaker_tag = "Speaker 2"
             texto_hablado = re.sub(r"^ALEJANDRO:\s*", "", linea, flags=re.IGNORECASE)
 
-        # Limpieza y forzado fonético
         texto_hablado = re.sub(r"\bEdu-?Radar\b", "Edu Radar", texto_hablado, flags=re.IGNORECASE)
         texto_hablado = html.unescape(texto_hablado).strip()
 
@@ -308,6 +307,26 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
 
     return data_buffer, ARCHIVO_VOZ_WAV
 
+async def generar_audio_expresivo(client: genai.Client, guion_texto: str) -> tuple[bytes, str]:
+    print("   [Gemini TTS] Generando audio multimóvil a dos voces (Jori y Rami)...")
+    
+    # Manejo de reintentos para mitigar errores HTTP 503 (High Demand Spikes)
+    for intento in range(1, 4):
+        try:
+            return await asyncio.to_thread(_sintetizar_audio_multivoz, client, guion_texto)
+        except genai_errors.APIError as e:
+            if e.code == 503 and intento < 3:
+                print(f"   [Aviso API 503] Alta demanda detectada. Reintentando en 15s (Intento {intento}/3)...")
+                await asyncio.sleep(15)
+            else:
+                raise e
+        except Exception as e:
+            if intento < 3:
+                print(f"   [Reintento TTS] Error temporal ({e}). Reintentando en 10s...")
+                await asyncio.sleep(10)
+            else:
+                raise e
+
 # ---------------------------------------------------------------------------
 # 5. Mezcla de Audio Profesional (Cortinillas y Música de Fondo)
 # ---------------------------------------------------------------------------
@@ -321,20 +340,16 @@ def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
     print("   [Audio Post-Procesamiento] Ensamblando cortinillas y música de fondo...")
     voz_segment = AudioSegment.from_file(archivo_voz)
 
-    # 1. Superposición de música de fondo (si se proporciona 'musica_fondo.mp3')
     if os.path.exists(ARCHIVO_FONDO):
         print(f"   [Mezcla] Añadiendo música de fondo desde '{ARCHIVO_FONDO}'...")
         fondo = AudioSegment.from_file(ARCHIVO_FONDO)
-        # Atenuar la música de fondo -20dB para dar prioridad a la voz
         fondo = fondo - 20
-        # Bucle de la música si es más corta que la locución
         if len(fondo) < len(voz_segment):
             repetir = (len(voz_segment) // len(fondo)) + 1
             fondo = fondo * repetir
         fondo = fondo[:len(voz_segment)].fade_out(3000)
         voz_segment = voz_segment.overlay(fondo)
 
-    # 2. Concatena Intro al inicio (si existe 'intro.mp3')
     audio_final = AudioSegment.empty()
     if os.path.exists(ARCHIVO_INTRO):
         print(f"   [Mezcla] Añadiendo cortinilla de inicio '{ARCHIVO_INTRO}'...")
@@ -343,13 +358,11 @@ def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
 
     audio_final += voz_segment
 
-    # 3. Concatena Outro al final (si existe 'outro.mp3')
     if os.path.exists(ARCHIVO_OUTRO):
         print(f"   [Mezcla] Añadiendo cortinilla de cierre '{ARCHIVO_OUTRO}'...")
         outro = AudioSegment.from_file(ARCHIVO_OUTRO)
         audio_final += outro
 
-    # Exportar archivo final en MP3
     audio_final.export(archivo_salida, format="mp3", bitrate="192k")
     if os.path.exists(archivo_voz):
         os.remove(archivo_voz)
@@ -387,7 +400,7 @@ async def ejecutar_pipeline() -> None:
     print(f"   Guion redactado ({palabras} palabras, aprox. {minutos_estimados} min).")
 
     print(f"[3/3] Sintetizando audio expresivo (Gemini 3.8 Flash TTS)...")
-    data_buffer, nombre_archivo_raw = await asyncio.to_thread(_sintetizar_audio_multivoz, client, guion)
+    data_buffer, nombre_archivo_raw = await generar_audio_expresivo(client, guion)
     with open(nombre_archivo_raw, "wb") as f:
         f.write(data_buffer)
 
