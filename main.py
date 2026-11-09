@@ -155,15 +155,13 @@ NOTICIAS FUENTE DISPONIBLES:
 """
 
 def _generar_texto_gemini(client: genai.Client, prompt: str) -> str:
-    # Aumentar el tiempo límite a 300 segundos (5 minutos) y acotar max_output_tokens
     response = client.models.generate_content(
         model=MODELO_TEXTO,
         contents=prompt,
         config=types.GenerateContentConfig(
             temperature=0.7,
             max_output_tokens=2500
-        ),
-        http_options=types.HttpOptions(timeout=300_000)
+        )
     )
     if not response.text:
         raise ValueError("La respuesta del modelo de texto volvió vacía.")
@@ -380,10 +378,11 @@ async def ejecutar_pipeline() -> None:
     if not api_key:
         raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no está configurada en los secretos de GitHub.")
 
+    # Configuración de timeout global en el cliente (300 segundos = 5 minutos)
     client = genai.Client(
         api_key=api_key,
         http_options=types.HttpOptions(
-            timeout=180_000,
+            timeout=300_000,
             retry_options=types.HttpRetryOptions(attempts=3, initial_delay=3.0, max_delay=15.0)
         )
     )
