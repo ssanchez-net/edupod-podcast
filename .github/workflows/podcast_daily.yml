@@ -31,11 +31,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install feedparser google-genai pydub
 
-      - name: 5. Ejecutar script de generación y mezcla de audio
+      - name: 5. Ejecutar script de generación y mezcla con reintentos de Workflow
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_wait_seconds: 120
+          command: python main.py
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PYTHONUNBUFFERED: "1"
-        run: python main.py
 
       - name: 6. Persistir histórico de noticias en el repositorio
         run: |
