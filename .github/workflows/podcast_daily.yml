@@ -37,12 +37,7 @@ jobs:
           PYTHONUNBUFFERED: "1"
         run: python main.py
 
-      - name: 6. Diagnóstico de archivos generados en la raíz
-        run: |
-          echo "=== LISTADO DE ARCHIVOS EN LA RAÍZ DEL REPOSITORIO ==="
-          ls -la
-
-      - name: 7. Persistir histórico de noticias en el repositorio
+      - name: 6. Persistir histórico de noticias en el repositorio
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
@@ -50,12 +45,12 @@ jobs:
           git commit -m "Auto-update: historico de noticias [skip ci]" || echo "Sin cambios en el histórico"
           git push || true
 
-      - name: 8. Almacenar los archivos MP3 y TXT generados
+      - name: 7. Almacenar los archivos MP3 y TXT generados
         uses: actions/upload-artifact@v4.4.3
         with:
           name: eduradar-episodio-y-guion
           path: |
-            episodio_*.mp3
-            guion_*.txt
+            ./**/*.mp3
+            ./**/*.txt
           if-no-files-found: warn
           retention-days: 7
