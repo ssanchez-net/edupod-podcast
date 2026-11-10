@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: 1. Descargar el repositorio
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
 
       - name: 2. Instalar FFmpeg para mezcla de audio
         run: |
@@ -22,7 +22,7 @@ jobs:
           sudo apt-get install -y ffmpeg
 
       - name: 3. Configurar entorno de Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v5.3.0
         with:
           python-version: '3.10'
 
@@ -36,20 +36,23 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: python main.py
 
-      - name: 6. Persistir historico de noticias en el repositorio
+      - name: 6. Inspeccionar directorio tras ejecución
+        run: ls -la
+
+      - name: 7. Persistir historico de noticias en el repositorio
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add historico_noticias.json
+          git add historico_noticias.json || true
           git commit -m "Auto-update: historico de noticias [skip ci]" || echo "Sin cambios en el histórico"
-          git push
+          git push || true
 
-      - name: 7. Almacenar los archivos MP3 y TXT generados
+      - name: 8. Almacenar los archivos MP3 y TXT generados
         uses: actions/upload-artifact@v4.4.3
         with:
           name: eduradar-episodio-y-guion
           path: |
-            ./episodio_*.mp3
-            ./guion_*.txt
-          if-no-files-found: error
+            episodio_*.mp3
+            guion_*.txt
+          if-no-files-found: warn
           retention-days: 7
