@@ -52,7 +52,7 @@ MODELO_TEXTO = "gemini-3.8-flash"
 MODELO_TTS = "gemini-3.8-flash-tts"
 
 # ---------------------------------------------------------------------------
-# 2. Control de Histórico Anti-Repetición e Ingesta Resiliente
+# 2. Ingesta Resiliente y Control de Histórico
 # ---------------------------------------------------------------------------
 
 def cargar_historico() -> list[str]:
@@ -109,7 +109,6 @@ async def obtener_titulares() -> tuple[str, list[str]]:
     
     todos_los_items = [item for grupo in resultados for item in grupo]
     
-    # CONTROL DE SEGURIDAD: Si no hay noticias nuevas, usar fallback informativo
     if not todos_los_items:
         print("   [Aviso] No se detectaron titulares nuevos no procesados. Usando noticias destacadas globales de EdTech...")
         bloque_fallback = (
@@ -125,7 +124,7 @@ async def obtener_titulares() -> tuple[str, list[str]]:
     return "\n".join(bloques_texto), titulos_usados
 
 # ---------------------------------------------------------------------------
-# 3. Prompt Maestro Expresivo para Gemini
+# 3. Prompt Maestro Expresivo y Generación con Reintentos
 # ---------------------------------------------------------------------------
 
 def construir_prompt_maestro(texto_noticias: str) -> str:
@@ -175,9 +174,26 @@ def _generar_texto_gemini(client: genai.Client, prompt: str) -> str:
 async def generar_guion(client: genai.Client, texto_noticias: str) -> str:
     prompt = construir_prompt_maestro(texto_noticias)
     print("   [Gemini API] Solicitando guion conversacional...")
-    guion_texto = await asyncio.to_thread(_generar_texto_gemini, client, prompt)
-    print("   [Éxito] Guion redactado correctamente.")
-    return guion_texto
+    
+    # Manejo explícito de reintentos ante error HTTP 503 (Servidores ocupados)
+    for intento in range(1, 5):
+        try:
+            guion_texto = await asyncio.to_thread(_generar_texto_gemini, client, prompt)
+            print("   [Éxito] Guion redactado correctamente.")
+            return guion_texto
+        except genai_errors.APIError as e:
+            if (getattr(e, 'code', None) == 503 or "503" in str(e)) and intento < 4:
+                tiempo_espera = intento * 20
+                print(f"   [Aviso API 503] Servidores ocupados. Reintentando generación de guion en {tiempo_espera}s (Intento {intento}/4)...")
+                await asyncio.sleep(tiempo_espera)
+            else:
+                raise e
+        except Exception as e:
+            if intento < 4:
+                print(f"   [Reintento Texto] Error temporal ({e}). Reintentando en 15s...")
+                await asyncio.sleep(15)
+            else:
+                raise e
 
 def guardar_guion_texto(guion_texto: str) -> None:
     with open(ARCHIVO_GUION, "w", encoding="utf-8") as f:
@@ -317,19 +333,20 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
 
 async def generar_audio_expresivo(client: genai.Client, guion_texto: str) -> tuple[bytes, str]:
     print("   [Gemini TTS] Generando audio multimóvil a dos voces (Sofía=Jori, Alejandro=Rami)...")
-    for intento in range(1, 4):
+    for intento in range(1, 5):
         try:
             return await asyncio.to_thread(_sintetizar_audio_multivoz, client, guion_texto)
         except genai_errors.APIError as e:
-            if e.code == 503 and intento < 3:
-                print(f"   [Aviso API 503] Reintentando en 15s (Intento {intento}/3)...")
-                await asyncio.sleep(15)
+            if (getattr(e, 'code', None) == 503 or "503" in str(e)) and intento < 4:
+                tiempo_espera = intento * 20
+                print(f"   [Aviso API 503 TTS] Reintentando síntesis en {tiempo_espera}s (Intento {intento}/4)...")
+                await asyncio.sleep(tiempo_espera)
             else:
                 raise e
         except Exception as e:
-            if intento < 3:
-                print(f"   [Reintento TTS] Error temporal ({e}). Reintentando en 10s...")
-                await asyncio.sleep(10)
+            if intento < 4:
+                print(f"   [Reintento TTS] Error temporal ({e}). Reintentando en 15s...")
+                await asyncio.sleep(15)
             else:
                 raise e
 
