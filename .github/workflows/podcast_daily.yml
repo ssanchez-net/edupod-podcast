@@ -45,12 +45,12 @@ jobs:
           git commit -m "Auto-update: historico de noticias [skip ci]" || echo "Sin cambios en el histórico"
           git push || true
 
-      - name: 7. Almacenar los archivos MP3 y TXT generados
+      - name: 7. Almacenar los archivos MP3 y TXT generados (Episodio y Guion)
         uses: actions/upload-artifact@v4.4.3
         with:
           name: eduradar-episodio-y-guion
           path: |
-            ./**/*.mp3
-            ./**/*.txt
-          if-no-files-found: warn
+            episodio_ep*.mp3
+            guion_ep*.txt
+          if-no-files-found: error
           retention-days: 7
