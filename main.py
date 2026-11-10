@@ -45,7 +45,11 @@ RSS_FEEDS = [
     "https://www.eschoolnews.com/category/top-news/feed/",
     "https://www.techlearning.com/feeds.xml",
     "https://www.kqed.org/mindshift/feed/",
-    "https://mfeldstein.com/feed/"
+    "https://mfeldstein.com/feed/",
+    "https://www.theguardian.com/education/rss",
+    "https://rss.nytimes.com/services/xml/rss/nyt/Education.xml",
+    "https://www.lemonde.fr/education/rss_full.xml",
+    "https://elpais.com/rss/elpais/educacion.xml"
 ]
 
 MODELO_TEXTO = "gemini-3.8-flash"
@@ -175,7 +179,6 @@ async def generar_guion(client: genai.Client, texto_noticias: str) -> str:
     prompt = construir_prompt_maestro(texto_noticias)
     print("   [Gemini API] Solicitando guion conversacional...")
     
-    # Manejo explícito de reintentos ante error HTTP 503 (Servidores ocupados)
     for intento in range(1, 5):
         try:
             guion_texto = await asyncio.to_thread(_generar_texto_gemini, client, prompt)
@@ -254,22 +257,30 @@ def convert_to_wav(audio_data: bytes, mime_type: str) -> bytes:
 def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[bytes, str]:
     lineas = guion_texto.strip().split("\n")
     parts = []
+    current_speaker = "Speaker 1"  # Por defecto inicia Sofía
 
     for linea in lineas:
-        linea = linea.strip()
-        if not linea:
+        linea_limpia = linea.strip()
+        if not linea_limpia:
             continue
 
-        speaker_tag = "Speaker 1"
-        texto_hablado = linea
+        # Detectar si la línea actual o el inicio contiene el identificador de locutor
+        if re.match(r"^SOFÍ?A:\s*$", linea_limpia, flags=re.IGNORECASE):
+            current_speaker = "Speaker 1"
+            continue
+        elif re.match(r"^ALEJANDRO:\s*$", linea_limpia, flags=re.IGNORECASE):
+            current_speaker = "Speaker 2"
+            continue
+        elif linea_limpia.upper().startswith("SOFÍA:") or linea_limpia.upper().startswith("SOFIA:"):
+            current_speaker = "Speaker 1"
+            texto_hablado = re.sub(r"^SOFÍ?A:\s*", "", linea_limpia, flags=re.IGNORECASE)
+        elif linea_limpia.upper().startswith("ALEJANDRO:"):
+            current_speaker = "Speaker 2"
+            texto_hablado = re.sub(r"^ALEJANDRO:\s*", "", linea_limpia, flags=re.IGNORECASE)
+        else:
+            texto_hablado = linea_limpia
 
-        if linea.startswith("SOFÍA:") or linea.startswith("SOFIA:"):
-            speaker_tag = "Speaker 1"
-            texto_hablado = re.sub(r"^SOFÍ?A:\s*", "", linea, flags=re.IGNORECASE)
-        elif linea.startswith("ALEJANDRO:"):
-            speaker_tag = "Speaker 2"
-            texto_hablado = re.sub(r"^ALEJANDRO:\s*", "", linea, flags=re.IGNORECASE)
-
+        # Normalizar nombre del podcast y decodificar caracteres HTML
         texto_hablado = re.sub(r"\bEdu-?Radar\b", "Edu Radar", texto_hablado, flags=re.IGNORECASE)
         texto_hablado = html.unescape(texto_hablado).strip()
 
@@ -277,12 +288,13 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
             parts.append(
                 types.Part(
                     text=texto_hablado,
-                    speech_metadata=types.SpeechMetadata(speaker=speaker_tag)
+                    speech_metadata=types.SpeechMetadata(speaker=current_speaker)
                 )
             )
 
     contents = [types.Content(role="user", parts=parts)]
 
+    # Asignación fija e inmutable de perfiles de voz
     generate_content_config = types.GenerateContentConfig(
         temperature=1.0,
         response_modalities=["audio"],
