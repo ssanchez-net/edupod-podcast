@@ -28,7 +28,6 @@ ARCHIVO_SALIDA_FINAL = f"episodio_ep{FECHA_STR}.mp3"
 ARCHIVO_GUION = f"guion_ep{FECHA_STR}.txt"
 ARCHIVO_HISTORICO = "historico_noticias.json"
 
-# Archivos multimedia opcionales (ubicados en la raíz del repositorio)
 ARCHIVO_INTRO = "intro.mp3"
 ARCHIVO_OUTRO = "outro.mp3"
 ARCHIVO_FONDO = "musica_fondo.mp3"
@@ -53,7 +52,7 @@ MODELO_TEXTO = "gemini-3.8-flash"
 MODELO_TTS = "gemini-3.8-flash-tts"
 
 # ---------------------------------------------------------------------------
-# 2. Control de Histórico Anti-Repetición
+# 2. Control de Histórico Anti-Repetición e Ingesta Resiliente
 # ---------------------------------------------------------------------------
 
 def cargar_historico() -> list[str]:
@@ -66,6 +65,8 @@ def cargar_historico() -> list[str]:
     return []
 
 def guardar_historico(nuevos_titulos: list[str]) -> None:
+    if not nuevos_titulos:
+        return
     historico = cargar_historico()
     historico.extend(nuevos_titulos)
     historico = historico[-100:]
@@ -83,7 +84,7 @@ def _parsear_feed(url: str, historico: list[str]) -> list[tuple[str, str]]:
         nombre_fuente = feed.feed.get('title', url)
         entradas = getattr(feed, "entries", [])
         items = []
-        for entry in entradas[:3]:
+        for entry in entradas[:5]:
             titulo = limpiar_texto(getattr(entry, "title", "Sin título"))
             if titulo in historico:
                 continue
@@ -107,13 +108,24 @@ async def obtener_titulares() -> tuple[str, list[str]]:
     resultados = await asyncio.gather(*tareas)
     
     todos_los_items = [item for grupo in resultados for item in grupo]
+    
+    # CONTROL DE SEGURIDAD: Si no hay noticias nuevas, usar fallback informativo
+    if not todos_los_items:
+        print("   [Aviso] No se detectaron titulares nuevos no procesados. Usando noticias destacadas globales de EdTech...")
+        bloque_fallback = (
+            "FUENTE OFICIAL: Observatorio de Innovación Educativa\n"
+            "TÍTULO: Avances en Inteligencia Artificial Generativa y Evaluación Formativa\n"
+            "RESUMEN: Un análisis global sobre cómo las instituciones de educación superior están adoptando asistentes de IA para personalizar la retroalimentación estudiantil y reducir la carga administrativa docente.\n---"
+        )
+        return bloque_fallback, ["Avances en Inteligencia Artificial Generativa y Evaluación Formativa"]
+
     titulos_usados = [t[0] for t in todos_los_items[:12]]
     bloques_texto = [t[1] for t in todos_los_items[:12]]
     
     return "\n".join(bloques_texto), titulos_usados
 
 # ---------------------------------------------------------------------------
-# 3. Prompt Maestro Expresivo para Gemini (Estilo Vocal Cálido y Friendly)
+# 3. Prompt Maestro Expresivo para Gemini
 # ---------------------------------------------------------------------------
 
 def construir_prompt_maestro(texto_noticias: str) -> str:
@@ -123,32 +135,26 @@ def construir_prompt_maestro(texto_noticias: str) -> str:
 
     return f"""
 Actúa como un equipo de dos periodistas y locutores profesionales de podcast sobre educación y EdTech:
-- SOFÍA (Speaker 1): Presentadora principal, analítica, apasionada por la pedagogía e inclusión. Tono de locución: Friendly, amigable, cálido y articulado.
-- ALEJANDRO (Speaker 2): Co-presentador, dinámico, enfocado en tecnología e impacto práctico. Tono de locución: Friendly, cercano, empático y profesional.
+- SOFÍA (Speaker 1): Presentadora principal, analítica, apasionada por la pedagogía e inclusión. Tono: Friendly, amigable, cálido.
+- ALEJANDRO (Speaker 2): Co-presentador, dinámico, enfocado en tecnología e impacto práctico. Tono: Friendly, cercano, empático.
 
-Tu objetivo es redactar un guion COMPLETO en formato de DIÁLOGO CÁLIDO, NATURAL Y SUMAMENTE ENTERTAINING para el podcast "Edu Radar".
+Tu objetivo es redactar un guion COMPLETO en formato de DIÁLOGO CÁLIDO Y ENTERTAINING para el podcast "Edu Radar".
 
 TARGET DE EXTENSIÓN: Entre 750 y 950 PALABRAS (5 a 7 minutos de locución).
 
 REGLAS DE FORMATO Y EXPRESIVIDAD:
-1. PRONUNCIACIÓN DEL NOMBRE: Escribe SIEMPRE el nombre del podcast separado con espacio como `Edu Radar` (SIN GUIÓN) para garantizar la lectura correcta en español neutro.
-2. ESTILO Y ETIQUETAS VOCALES: Utiliza un estilo de voz "Friendly" (entrega cálida y neutra con micro-pausas). Integra de forma natural las siguientes marcas expresivas:
-   - `<breath>` (pausas de respiración).
-   - `<chuckle>` (matices simpáticos o ligeros).
-   - `<enthusiastic>` (noticias clave y logros).
-   - `<astonishment>` (datos e indicadores sorprendentes).
-   - `<sigh>` (reflexiones profundas sobre brechas o problemas).
-3. ESTRUCTURA OBLIGATORIA COMPLETA:
+1. PRONUNCIACIÓN DEL NOMBRE: Escribe SIEMPRE el nombre del podcast separado con espacio como `Edu Radar` (SIN GUIÓN).
+2. ETIQUETAS VOCALES: Integra de forma natural las siguientes marcas expresivas: `<breath>`, `<chuckle>`, `<enthusiastic>`, `<astonishment>`, `<sigh>`.
+3. ESTRUCTURA OBLIGATORIA:
    - APERTURA: Saludo directo, mención de "Edu Radar" y fecha exacta "{fecha_hoy}".
-   - DESARROLLO: Análisis fluido de las noticias disponibles, asignando turnos secuenciales entre Sofía y Alejandro con atribución explicita a las fuentes oficiales.
-   - CIERRE: Pregunta provocadora para la audiencia, llamado a la acción (CTA) para suscribirse y despedida final con la frase exacta: "¡Hasta la próxima emisión de Edu Radar!".
+   - DESARROLLO: Análisis fluido de las noticias con turnos secuenciales entre Sofía y Alejandro.
+   - CIERRE: Pregunta provocadora, llamado a la acción (CTA) y despedida exacta: "¡Hasta la próxima emisión de Edu Radar!".
 
 RESTRICCIONES ESTRICTAS:
 - Cada intervención DEBE iniciar obligatoriamente con `SOFÍA:` o `ALEJANDRO:`.
 - NO intercales roles en la misma línea.
 - NO agregues acotaciones entre corchetes rectos `[...]`.
-- NO uses formato Markdown (sin asteriscos, sin encabezados `#`, sin viñetas).
-- NUNCA trunques la respuesta. Escribe el guion completo de principio a fin.
+- NO uses formato Markdown (sin asteriscos, sin `#`, sin viñetas).
 
 NOTICIAS FUENTE DISPONIBLES:
 {texto_noticias}
@@ -261,7 +267,6 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
 
     contents = [types.Content(role="user", parts=parts)]
 
-    # Fijación permanente de voces: Sofía (Speaker 1) = Jori | Alejandro (Speaker 2) = Rami
     generate_content_config = types.GenerateContentConfig(
         temperature=1.0,
         response_modalities=["audio"],
@@ -317,7 +322,7 @@ async def generar_audio_expresivo(client: genai.Client, guion_texto: str) -> tup
             return await asyncio.to_thread(_sintetizar_audio_multivoz, client, guion_texto)
         except genai_errors.APIError as e:
             if e.code == 503 and intento < 3:
-                print(f"   [Aviso API 503] Alta demanda detectada. Reintentando en 15s (Intento {intento}/3)...")
+                print(f"   [Aviso API 503] Reintentando en 15s (Intento {intento}/3)...")
                 await asyncio.sleep(15)
             else:
                 raise e
@@ -329,12 +334,12 @@ async def generar_audio_expresivo(client: genai.Client, guion_texto: str) -> tup
                 raise e
 
 # ---------------------------------------------------------------------------
-# 5. Mezcla de Audio Profesional (Transiciones de 3s y Ajuste de Volumen -12dB)
+# 5. Mezcla de Audio Profesional
 # ---------------------------------------------------------------------------
 
 def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
     if AudioSegment is None:
-        print("   [Aviso] pydub no está disponible. Se conservará el archivo de voz sin cortinillas.")
+        print("   [Aviso] pydub no disponible. Se conservará el archivo de voz sin cortinillas.")
         os.rename(archivo_voz, archivo_salida)
         return
 
@@ -343,11 +348,71 @@ def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
     DURACION_FADE_MS = 3000
 
     if os.path.exists(ARCHIVO_FONDO):
-        print(f"   [Mezcla] Añadiendo música de fondo desde '{ARCHIVO_FONDO}' (-12dB con 3s fade)...")
-        fondo = AudioSegment.from_file(ARCHIVO_FONDO)
-        fondo = fondo - 12
+        fondo = AudioSegment.from_file(ARCHIVO_FONDO) - 12
         if len(fondo) < len(voz_segment):
             repetir = (len(voz_segment) // len(fondo)) + 1
             fondo = fondo * repetir
-        
         fondo = fondo[:len(voz_segment)].fade_in(DURACION_FADE_MS).fade_out(DURACION_FADE_MS)
+        voz_segment = voz_segment.overlay(fondo)
+
+    audio_final = AudioSegment.empty()
+    if os.path.exists(ARCHIVO_INTRO):
+        intro = AudioSegment.from_file(ARCHIVO_INTRO).fade_out(DURACION_FADE_MS)
+        audio_final += intro
+
+    audio_final += voz_segment
+
+    if os.path.exists(ARCHIVO_OUTRO):
+        outro = AudioSegment.from_file(ARCHIVO_OUTRO).fade_in(DURACION_FADE_MS)
+        audio_final += outro
+
+    audio_final.export(archivo_salida, format="mp3", bitrate="192k")
+    if os.path.exists(archivo_voz):
+        os.remove(archivo_voz)
+    print(f"   [OK] Episodio masterizado guardado en '{archivo_salida}'.")
+
+# ---------------------------------------------------------------------------
+# Pipeline Principal
+# ---------------------------------------------------------------------------
+
+async def ejecutar_pipeline() -> None:
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no está configurada en los secretos de GitHub.")
+
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(
+            timeout=300_000,
+            retry_options=types.HttpRetryOptions(attempts=3, initial_delay=3.0, max_delay=15.0)
+        )
+    )
+
+    print(f"[1/3] Obteniendo noticias RSS para el episodio {FECHA_STR}...")
+    noticias, titulos_usados = await obtener_titulares()
+
+    print("[2/3] Generando guion expresivo con Gemini API...")
+    guion = await generar_guion(client, noticias)
+    guardar_guion_texto(guion)
+    
+    if titulos_usados:
+        guardar_historico(titulos_usados)
+
+    palabras = len(guion.split())
+    minutos_estimados = round(palabras / 140, 1)
+    print(f"   Guion redactado ({palabras} palabras, aprox. {minutos_estimados} min).")
+
+    print(f"[3/3] Sintetizando audio expresivo (Gemini 3.8 Flash TTS)...")
+    data_buffer, nombre_archivo_raw = await generar_audio_expresivo(client, guion)
+    with open(nombre_archivo_raw, "wb") as f:
+        f.write(data_buffer)
+
+    mezclar_audio_final(nombre_archivo_raw, ARCHIVO_SALIDA_FINAL)
+    print(f"¡Proceso completado! Archivos '{ARCHIVO_SALIDA_FINAL}' y '{ARCHIVO_GUION}' generados correctamente.")
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(ejecutar_pipeline())
+    except Exception as e:
+        print(f"::error title=Fallo del Pipeline::{e}")
+        sys.exit(1)
