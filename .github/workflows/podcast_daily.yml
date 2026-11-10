@@ -45,10 +45,11 @@ jobs:
           git push
 
       - name: 7. Almacenar los archivos MP3 y TXT generados
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v4.4.3
         with:
           name: eduradar-episodio-y-guion
           path: |
-            episodio_*.mp3
-            guion_*.txt
+            ./episodio_*.mp3
+            ./guion_*.txt
+          if-no-files-found: error
           retention-days: 7
