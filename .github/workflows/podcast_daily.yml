@@ -34,12 +34,15 @@ jobs:
       - name: 5. Ejecutar script de generación y mezcla de audio
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PYTHONUNBUFFERED: "1"
         run: python main.py
 
-      - name: 6. Inspeccionar directorio tras ejecución
-        run: ls -la
+      - name: 6. Diagnóstico de archivos generados en la raíz
+        run: |
+          echo "=== LISTADO DE ARCHIVOS EN LA RAÍZ DEL REPOSITORIO ==="
+          ls -la
 
-      - name: 7. Persistir historico de noticias en el repositorio
+      - name: 7. Persistir histórico de noticias en el repositorio
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
