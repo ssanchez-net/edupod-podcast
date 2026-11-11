@@ -12,14 +12,13 @@ from google.genai import errors as genai_errors
 from google.genai import types
 import feedparser
 
-# Importación para mezcla de audio (Cortinillas y Música de Fondo)
 try:
     from pydub import AudioSegment
 except ImportError:
     AudioSegment = None
 
 # ---------------------------------------------------------------------------
-# 1. Configuración Global y Nombres Dinámicos
+# Configuración Global
 # ---------------------------------------------------------------------------
 
 FECHA_STR = datetime.now().strftime("%d%m%Y")
@@ -33,30 +32,30 @@ ARCHIVO_OUTRO = "outro.mp3"
 ARCHIVO_FONDO = "musica_fondo.mp3"
 
 RSS_FEEDS = [
-    "https://www.unesco.org/en/rss/news/field_topic/education-38",
-    "https://www.weforum.org/agenda/topics/education-and-skills/feed",
-    "https://observatorio.tec.mx/feed/",
-    "https://intef.es/feed/",
-    "https://www.unam.mx/rss.xml",
-    "https://www.edsurge.com/articles_rss",
-    "https://www.insidehighered.com/rss.xml",
-    "https://www.edweek.org/technology.rss",
-    "https://www.k12dive.com/feeds/news/",
-    "https://www.eschoolnews.com/category/top-news/feed/",
-    "https://www.techlearning.com/feeds.xml",
-    "https://www.kqed.org/mindshift/feed/",
-    "https://mfeldstein.com/feed/",
-    "https://www.theguardian.com/education/rss",
-    "https://rss.nytimes.com/services/xml/rss/nyt/Education.xml",
-    "https://www.lemonde.fr/education/rss_full.xml",
-    "https://elpais.com/rss/elpais/educacion.xml"
+    "[https://www.unesco.org/en/rss/news/field_topic/education-38](https://www.unesco.org/en/rss/news/field_topic/education-38)",
+    "[https://www.weforum.org/agenda/topics/education-and-skills/feed](https://www.weforum.org/agenda/topics/education-and-skills/feed)",
+    "[https://observatorio.tec.mx/feed/](https://observatorio.tec.mx/feed/)",
+    "[https://intef.es/feed/](https://intef.es/feed/)",
+    "[https://www.unam.mx/rss.xml](https://www.unam.mx/rss.xml)",
+    "[https://www.edsurge.com/articles_rss](https://www.edsurge.com/articles_rss)",
+    "[https://www.insidehighered.com/rss.xml](https://www.insidehighered.com/rss.xml)",
+    "[https://www.edweek.org/technology.rss](https://www.edweek.org/technology.rss)",
+    "[https://www.k12dive.com/feeds/news/](https://www.k12dive.com/feeds/news/)",
+    "[https://www.eschoolnews.com/category/top-news/feed/](https://www.eschoolnews.com/category/top-news/feed/)",
+    "[https://www.techlearning.com/feeds.xml](https://www.techlearning.com/feeds.xml)",
+    "[https://www.kqed.org/mindshift/feed/](https://www.kqed.org/mindshift/feed/)",
+    "[https://mfeldstein.com/feed/](https://mfeldstein.com/feed/)",
+    "[https://www.theguardian.com/education/rss](https://www.theguardian.com/education/rss)",
+    "[https://rss.nytimes.com/services/xml/rss/nyt/Education.xml](https://rss.nytimes.com/services/xml/rss/nyt/Education.xml)",
+    "[https://www.lemonde.fr/education/rss_full.xml](https://www.lemonde.fr/education/rss_full.xml)",
+    "[https://elpais.com/rss/elpais/educacion.xml](https://elpais.com/rss/elpais/educacion.xml)"
 ]
 
 MODELO_TEXTO = "gemini-3.8-flash"
 MODELO_TTS = "gemini-3.8-flash-tts"
 
 # ---------------------------------------------------------------------------
-# 2. Ingesta Resiliente y Control de Histórico
+# Ingesta y Control de Histórico
 # ---------------------------------------------------------------------------
 
 def cargar_historico() -> list[str]:
@@ -85,7 +84,7 @@ def limpiar_texto(texto: str) -> str:
 def _parsear_feed(url: str, historico: list[str]) -> list[tuple[str, str]]:
     try:
         feed = feedparser.parse(url)
-        nombre_fuente = feed.feed.get('title', url)
+        nombre_fuente = getattr(feed.feed, "title", url)
         entradas = getattr(feed, "entries", [])
         items = []
         for entry in entradas[:5]:
@@ -114,21 +113,21 @@ async def obtener_titulares() -> tuple[str, list[str]]:
     todos_los_items = [item for grupo in resultados for item in grupo]
     
     if not todos_los_items:
-        print("   [Aviso] No se detectaron titulares nuevos no procesados. Usando noticias destacadas globales de EdTech...")
+        print("   [Fallback RSS] No se detectaron noticias inéditas. Aplicando tema de respaldo EdTech...")
         bloque_fallback = (
             "FUENTE OFICIAL: Observatorio de Innovación Educativa\n"
             "TÍTULO: Avances en Inteligencia Artificial Generativa y Evaluación Formativa\n"
-            "RESUMEN: Un análisis global sobre cómo las instituciones de educación superior están adoptando asistentes de IA para personalizar la retroalimentación estudiantil y reducir la carga administrativa docente.\n---"
+            "RESUMEN: Análisis global sobre cómo las instituciones de educación superior adoptan asistentes de IA "
+            "para personalizar la retroalimentación estudiantil y optimizar la gestión docente.\n---"
         )
         return bloque_fallback, ["Avances en Inteligencia Artificial Generativa y Evaluación Formativa"]
 
     titulos_usados = [t[0] for t in todos_los_items[:12]]
     bloques_texto = [t[1] for t in todos_los_items[:12]]
-    
     return "\n".join(bloques_texto), titulos_usados
 
 # ---------------------------------------------------------------------------
-# 3. Prompt Maestro Expresivo y Generación con Reintentos
+# Generación de Guion (Gemini API)
 # ---------------------------------------------------------------------------
 
 def construir_prompt_maestro(texto_noticias: str) -> str:
@@ -167,9 +166,7 @@ def _generar_texto_gemini(client: genai.Client, prompt: str) -> str:
     response = client.models.generate_content(
         model=MODELO_TEXTO,
         contents=prompt,
-        config=types.GenerateContentConfig(
-            temperature=0.7
-        )
+        config=types.GenerateContentConfig(temperature=0.7)
     )
     if not response.text:
         raise ValueError("La respuesta del modelo de texto volvió vacía.")
@@ -177,24 +174,22 @@ def _generar_texto_gemini(client: genai.Client, prompt: str) -> str:
 
 async def generar_guion(client: genai.Client, texto_noticias: str) -> str:
     prompt = construir_prompt_maestro(texto_noticias)
-    print("   [Gemini API] Solicitando guion conversacional...")
+    print("   [Gemini API] Solicitando generación de guion...")
     
-    for intento in range(1, 5):
+    max_intentos = 5
+    for intento in range(1, max_intentos + 1):
         try:
             guion_texto = await asyncio.to_thread(_generar_texto_gemini, client, prompt)
-            print("   [Éxito] Guion redactado correctamente.")
+            print("   [Éxito] Guion generado correctamente.")
             return guion_texto
-        except genai_errors.APIError as e:
-            if (getattr(e, 'code', None) == 503 or "503" in str(e)) and intento < 4:
-                tiempo_espera = intento * 20
-                print(f"   [Aviso API 503] Servidores ocupados. Reintentando generación de guion en {tiempo_espera}s (Intento {intento}/4)...")
-                await asyncio.sleep(tiempo_espera)
-            else:
-                raise e
-        except Exception as e:
-            if intento < 4:
-                print(f"   [Reintento Texto] Error temporal ({e}). Reintentando en 15s...")
-                await asyncio.sleep(15)
+        except (genai_errors.APIError, Exception) as e:
+            err_code = getattr(e, 'code', None)
+            is_rate_limit = err_code in [429, 503] or any(k in str(e) for k in ["429", "503", "EXHAUSTED", "UNAVAILABLE"])
+            
+            if is_rate_limit and intento < max_intentos:
+                espera = (2 ** intento) * 10
+                print(f"   [API Throttle {err_code or 'Error'}] Esperando {espera}s antes de reintentar (Intento {intento}/{max_intentos})...")
+                await asyncio.sleep(espera)
             else:
                 raise e
 
@@ -204,7 +199,7 @@ def guardar_guion_texto(guion_texto: str) -> None:
     print(f"   [OK] Guion guardado en '{ARCHIVO_GUION}'.")
 
 # ---------------------------------------------------------------------------
-# 4. Síntesis Multivoz Expresiva (Sofía = Jori, Alejandro = Rami)
+# Síntesis TTS y Máquina de Estados de Voces
 # ---------------------------------------------------------------------------
 
 def parse_audio_mime_type(mime_type: str) -> dict[str, int]:
@@ -257,30 +252,29 @@ def convert_to_wav(audio_data: bytes, mime_type: str) -> bytes:
 def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[bytes, str]:
     lineas = guion_texto.strip().split("\n")
     parts = []
-    current_speaker = "Speaker 1"  # Por defecto inicia Sofía
+    current_speaker = "Speaker 1"  # Sofía por defecto
 
     for linea in lineas:
         linea_limpia = linea.strip()
         if not linea_limpia:
             continue
 
-        # Detectar si la línea actual o el inicio contiene el identificador de locutor
+        # Transición de estados explícita
         if re.match(r"^SOFÍ?A:\s*$", linea_limpia, flags=re.IGNORECASE):
             current_speaker = "Speaker 1"
             continue
         elif re.match(r"^ALEJANDRO:\s*$", linea_limpia, flags=re.IGNORECASE):
             current_speaker = "Speaker 2"
             continue
-        elif linea_limpia.upper().startswith("SOFÍA:") or linea_limpia.upper().startswith("SOFIA:"):
+        elif re.match(r"^SOFÍ?A:\s*", linea_limpia, flags=re.IGNORECASE):
             current_speaker = "Speaker 1"
             texto_hablado = re.sub(r"^SOFÍ?A:\s*", "", linea_limpia, flags=re.IGNORECASE)
-        elif linea_limpia.upper().startswith("ALEJANDRO:"):
+        elif re.match(r"^ALEJANDRO:\s*", linea_limpia, flags=re.IGNORECASE):
             current_speaker = "Speaker 2"
             texto_hablado = re.sub(r"^ALEJANDRO:\s*", "", linea_limpia, flags=re.IGNORECASE)
         else:
             texto_hablado = linea_limpia
 
-        # Normalizar nombre del podcast y decodificar caracteres HTML
         texto_hablado = re.sub(r"\bEdu-?Radar\b", "Edu Radar", texto_hablado, flags=re.IGNORECASE)
         texto_hablado = html.unescape(texto_hablado).strip()
 
@@ -294,7 +288,6 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
 
     contents = [types.Content(role="user", parts=parts)]
 
-    # Asignación fija e inmutable de perfiles de voz
     generate_content_config = types.GenerateContentConfig(
         temperature=1.0,
         response_modalities=["audio"],
@@ -334,7 +327,7 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
             mime_type = inline_data.mime_type
 
     if not audio_data:
-        raise ValueError("No se recibieron datos de audio desde el modelo Gemini TTS.")
+        raise ValueError("Error en respuesta TTS: El buffer de audio se devolvió vacío.")
 
     data_buffer = bytes(audio_data)
     file_extension = mimetypes.guess_extension(mime_type)
@@ -344,35 +337,33 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
     return data_buffer, ARCHIVO_VOZ_WAV
 
 async def generar_audio_expresivo(client: genai.Client, guion_texto: str) -> tuple[bytes, str]:
-    print("   [Gemini TTS] Generando audio multimóvil a dos voces (Sofía=Jori, Alejandro=Rami)...")
-    for intento in range(1, 5):
+    print("   [Gemini TTS] Generando síntesis multivoz (Sofía=Jori, Alejandro=Rami)...")
+    max_intentos = 5
+    for intento in range(1, max_intentos + 1):
         try:
             return await asyncio.to_thread(_sintetizar_audio_multivoz, client, guion_texto)
-        except genai_errors.APIError as e:
-            if (getattr(e, 'code', None) == 503 or "503" in str(e)) and intento < 4:
-                tiempo_espera = intento * 20
-                print(f"   [Aviso API 503 TTS] Reintentando síntesis en {tiempo_espera}s (Intento {intento}/4)...")
-                await asyncio.sleep(tiempo_espera)
-            else:
-                raise e
-        except Exception as e:
-            if intento < 4:
-                print(f"   [Reintento TTS] Error temporal ({e}). Reintentando en 15s...")
-                await asyncio.sleep(15)
+        except (genai_errors.APIError, Exception) as e:
+            err_code = getattr(e, 'code', None)
+            is_rate_limit = err_code in [429, 503] or any(k in str(e) for k in ["429", "503", "EXHAUSTED", "UNAVAILABLE"])
+            
+            if is_rate_limit and intento < max_intentos:
+                espera = (2 ** intento) * 15
+                print(f"   [TTS Throttle {err_code or 'Error'}] Reintentando en {espera}s (Intento {intento}/{max_intentos})...")
+                await asyncio.sleep(espera)
             else:
                 raise e
 
 # ---------------------------------------------------------------------------
-# 5. Mezcla de Audio Profesional
+# Post-Procesamiento de Audio
 # ---------------------------------------------------------------------------
 
 def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
     if AudioSegment is None:
-        print("   [Aviso] pydub no disponible. Se conservará el archivo de voz sin cortinillas.")
+        print("   [Aviso] pydub no está disponible. Guardando salida de voz sin mezcla.")
         os.rename(archivo_voz, archivo_salida)
         return
 
-    print("   [Audio Post-Procesamiento] Ensamblando cortinillas y música de fondo...")
+    print("   [Pydub Audio Engine] Ensamblando master final...")
     voz_segment = AudioSegment.from_file(archivo_voz)
     DURACION_FADE_MS = 3000
 
@@ -398,29 +389,29 @@ def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
     audio_final.export(archivo_salida, format="mp3", bitrate="192k")
     if os.path.exists(archivo_voz):
         os.remove(archivo_voz)
-    print(f"   [OK] Episodio masterizado guardado en '{archivo_salida}'.")
+    print(f"   [Éxito Master] Archivo final exportado en '{archivo_salida}'.")
 
 # ---------------------------------------------------------------------------
-# Pipeline Principal
+# Orquestación del Pipeline
 # ---------------------------------------------------------------------------
 
 async def ejecutar_pipeline() -> None:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
-        raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no está configurada en los secretos de GitHub.")
+        raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no se encuentra presente en el entorno.")
 
     client = genai.Client(
         api_key=api_key,
         http_options=types.HttpOptions(
             timeout=300_000,
-            retry_options=types.HttpRetryOptions(attempts=3, initial_delay=3.0, max_delay=15.0)
+            retry_options=types.HttpRetryOptions(attempts=2, initial_delay=5.0, max_delay=30.0)
         )
     )
 
-    print(f"[1/3] Obteniendo noticias RSS para el episodio {FECHA_STR}...")
+    print(f"[1/3] Extrayendo feeds RSS (Episodio {FECHA_STR})...")
     noticias, titulos_usados = await obtener_titulares()
 
-    print("[2/3] Generando guion expresivo con Gemini API...")
+    print("[2/3] Generando script conversacional con Gemini...")
     guion = await generar_guion(client, noticias)
     guardar_guion_texto(guion)
     
@@ -429,19 +420,19 @@ async def ejecutar_pipeline() -> None:
 
     palabras = len(guion.split())
     minutos_estimados = round(palabras / 140, 1)
-    print(f"   Guion redactado ({palabras} palabras, aprox. {minutos_estimados} min).")
+    print(f"   Métricas del guion: {palabras} palabras (~{minutos_estimados} min).")
 
-    print(f"[3/3] Sintetizando audio expresivo (Gemini 3.8 Flash TTS)...")
+    print("[3/3] Ejecutando motor de síntesis vocal...")
     data_buffer, nombre_archivo_raw = await generar_audio_expresivo(client, guion)
     with open(nombre_archivo_raw, "wb") as f:
         f.write(data_buffer)
 
     mezclar_audio_final(nombre_archivo_raw, ARCHIVO_SALIDA_FINAL)
-    print(f"¡Proceso completado! Archivos '{ARCHIVO_SALIDA_FINAL}' y '{ARCHIVO_GUION}' generados correctamente.")
+    print(f"Pipeline finalizado. Salidas: '{ARCHIVO_SALIDA_FINAL}' y '{ARCHIVO_GUION}'.")
 
 if __name__ == "__main__":
     try:
         asyncio.run(ejecutar_pipeline())
     except Exception as e:
-        print(f"::error title=Fallo del Pipeline::{e}")
+        print(f"::error title=Error Crítico en Pipeline::{e}")
         sys.exit(1)
