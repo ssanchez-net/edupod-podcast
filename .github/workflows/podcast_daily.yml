@@ -11,11 +11,11 @@ permissions:
 
 jobs:
   procesar-podcast:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: 1. Descargar el repositorio
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
 
       - name: 2. Instalar FFmpeg para mezcla de audio
         run: |
@@ -23,10 +23,9 @@ jobs:
           sudo apt-get install -y ffmpeg
 
       - name: 3. Configurar entorno de Python
-        uses: actions/setup-python@v5.3.0
+        uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          cache: 'pip'
 
       - name: 4. Instalar librerías necesarias
         run: |
@@ -48,7 +47,7 @@ jobs:
           git push || true
 
       - name: 7. Almacenar los archivos MP3 y TXT generados
-        uses: actions/upload-artifact@v4.4.3
+        uses: actions/upload-artifact@v4
         with:
           name: eduradar-episodio-semanal
           path: |
