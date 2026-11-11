@@ -32,23 +32,23 @@ ARCHIVO_OUTRO = "outro.mp3"
 ARCHIVO_FONDO = "musica_fondo.mp3"
 
 RSS_FEEDS = [
-    "[https://www.unesco.org/en/rss/news/field_topic/education-38](https://www.unesco.org/en/rss/news/field_topic/education-38)",
-    "[https://www.weforum.org/agenda/topics/education-and-skills/feed](https://www.weforum.org/agenda/topics/education-and-skills/feed)",
-    "[https://observatorio.tec.mx/feed/](https://observatorio.tec.mx/feed/)",
-    "[https://intef.es/feed/](https://intef.es/feed/)",
-    "[https://www.unam.mx/rss.xml](https://www.unam.mx/rss.xml)",
-    "[https://www.edsurge.com/articles_rss](https://www.edsurge.com/articles_rss)",
-    "[https://www.insidehighered.com/rss.xml](https://www.insidehighered.com/rss.xml)",
-    "[https://www.edweek.org/technology.rss](https://www.edweek.org/technology.rss)",
-    "[https://www.k12dive.com/feeds/news/](https://www.k12dive.com/feeds/news/)",
-    "[https://www.eschoolnews.com/category/top-news/feed/](https://www.eschoolnews.com/category/top-news/feed/)",
-    "[https://www.techlearning.com/feeds.xml](https://www.techlearning.com/feeds.xml)",
-    "[https://www.kqed.org/mindshift/feed/](https://www.kqed.org/mindshift/feed/)",
-    "[https://mfeldstein.com/feed/](https://mfeldstein.com/feed/)",
-    "[https://www.theguardian.com/education/rss](https://www.theguardian.com/education/rss)",
-    "[https://rss.nytimes.com/services/xml/rss/nyt/Education.xml](https://rss.nytimes.com/services/xml/rss/nyt/Education.xml)",
-    "[https://www.lemonde.fr/education/rss_full.xml](https://www.lemonde.fr/education/rss_full.xml)",
-    "[https://elpais.com/rss/elpais/educacion.xml](https://elpais.com/rss/elpais/educacion.xml)"
+    "https://www.unesco.org/en/rss/news/field_topic/education-38",
+    "https://www.weforum.org/agenda/topics/education-and-skills/feed",
+    "https://observatorio.tec.mx/feed/",
+    "https://intef.es/feed/",
+    "https://www.unam.mx/rss.xml",
+    "https://www.edsurge.com/articles_rss",
+    "https://www.insidehighered.com/rss.xml",
+    "https://www.edweek.org/technology.rss",
+    "https://www.k12dive.com/feeds/news/",
+    "https://www.eschoolnews.com/category/top-news/feed/",
+    "https://www.techlearning.com/feeds.xml",
+    "https://www.kqed.org/mindshift/feed/",
+    "https://mfeldstein.com/feed/",
+    "https://www.theguardian.com/education/rss",
+    "https://rss.nytimes.com/services/xml/rss/nyt/Education.xml",
+    "https://www.lemonde.fr/education/rss_full.xml",
+    "https://elpais.com/rss/elpais/educacion.xml"
 ]
 
 MODELO_TEXTO = "gemini-3.8-flash"
@@ -228,211 +228,4 @@ def convert_to_wav(audio_data: bytes, mime_type: str) -> bytes:
     data_size = len(audio_data)
     bytes_per_sample = bits_per_sample // 8
     block_align = num_channels * bytes_per_sample
-    byte_rate = sample_rate * block_align
-    chunk_size = 36 + data_size
-
-    header = struct.pack(
-        "<4sI4s4sIHHIIHH4sI",
-        b"RIFF",
-        chunk_size,
-        b"WAVE",
-        b"fmt ",
-        16,
-        1,
-        num_channels,
-        sample_rate,
-        byte_rate,
-        block_align,
-        bits_per_sample,
-        b"data",
-        data_size
-    )
-    return header + audio_data
-
-def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[bytes, str]:
-    lineas = guion_texto.strip().split("\n")
-    parts = []
-    current_speaker = "Speaker 1"  # Sofía por defecto
-
-    for linea in lineas:
-        linea_limpia = linea.strip()
-        if not linea_limpia:
-            continue
-
-        # Transición de estados explícita
-        if re.match(r"^SOFÍ?A:\s*$", linea_limpia, flags=re.IGNORECASE):
-            current_speaker = "Speaker 1"
-            continue
-        elif re.match(r"^ALEJANDRO:\s*$", linea_limpia, flags=re.IGNORECASE):
-            current_speaker = "Speaker 2"
-            continue
-        elif re.match(r"^SOFÍ?A:\s*", linea_limpia, flags=re.IGNORECASE):
-            current_speaker = "Speaker 1"
-            texto_hablado = re.sub(r"^SOFÍ?A:\s*", "", linea_limpia, flags=re.IGNORECASE)
-        elif re.match(r"^ALEJANDRO:\s*", linea_limpia, flags=re.IGNORECASE):
-            current_speaker = "Speaker 2"
-            texto_hablado = re.sub(r"^ALEJANDRO:\s*", "", linea_limpia, flags=re.IGNORECASE)
-        else:
-            texto_hablado = linea_limpia
-
-        texto_hablado = re.sub(r"\bEdu-?Radar\b", "Edu Radar", texto_hablado, flags=re.IGNORECASE)
-        texto_hablado = html.unescape(texto_hablado).strip()
-
-        if texto_hablado:
-            parts.append(
-                types.Part(
-                    text=texto_hablado,
-                    speech_metadata=types.SpeechMetadata(speaker=current_speaker)
-                )
-            )
-
-    contents = [types.Content(role="user", parts=parts)]
-
-    generate_content_config = types.GenerateContentConfig(
-        temperature=1.0,
-        response_modalities=["audio"],
-        speech_config=types.SpeechConfig(
-            multi_speaker_voice_config=types.MultiSpeakerVoiceConfig(
-                speaker_voice_configs=[
-                    types.SpeakerVoiceConfig(
-                        speaker="Speaker 1",
-                        voice_config=types.VoiceConfig(
-                            prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Jori")
-                        )
-                    ),
-                    types.SpeakerVoiceConfig(
-                        speaker="Speaker 2",
-                        voice_config=types.VoiceConfig(
-                            prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Rami")
-                        )
-                    ),
-                ]
-            )
-        )
-    )
-
-    audio_data = bytearray()
-    mime_type = ""
-
-    for chunk in client.models.generate_content_stream(
-        model=MODELO_TTS,
-        contents=contents,
-        config=generate_content_config,
-    ):
-        if chunk.parts is None:
-            continue
-        if chunk.parts[0].inline_data and chunk.parts[0].inline_data.data:
-            inline_data = chunk.parts[0].inline_data
-            audio_data.extend(inline_data.data)
-            mime_type = inline_data.mime_type
-
-    if not audio_data:
-        raise ValueError("Error en respuesta TTS: El buffer de audio se devolvió vacío.")
-
-    data_buffer = bytes(audio_data)
-    file_extension = mimetypes.guess_extension(mime_type)
-    if file_extension is None or not mime_type.startswith("audio/wav"):
-        data_buffer = convert_to_wav(bytes(audio_data), mime_type)
-
-    return data_buffer, ARCHIVO_VOZ_WAV
-
-async def generar_audio_expresivo(client: genai.Client, guion_texto: str) -> tuple[bytes, str]:
-    print("   [Gemini TTS] Generando síntesis multivoz (Sofía=Jori, Alejandro=Rami)...")
-    max_intentos = 5
-    for intento in range(1, max_intentos + 1):
-        try:
-            return await asyncio.to_thread(_sintetizar_audio_multivoz, client, guion_texto)
-        except (genai_errors.APIError, Exception) as e:
-            err_code = getattr(e, 'code', None)
-            is_rate_limit = err_code in [429, 503] or any(k in str(e) for k in ["429", "503", "EXHAUSTED", "UNAVAILABLE"])
-            
-            if is_rate_limit and intento < max_intentos:
-                espera = (2 ** intento) * 15
-                print(f"   [TTS Throttle {err_code or 'Error'}] Reintentando en {espera}s (Intento {intento}/{max_intentos})...")
-                await asyncio.sleep(espera)
-            else:
-                raise e
-
-# ---------------------------------------------------------------------------
-# Post-Procesamiento de Audio
-# ---------------------------------------------------------------------------
-
-def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
-    if AudioSegment is None:
-        print("   [Aviso] pydub no está disponible. Guardando salida de voz sin mezcla.")
-        os.rename(archivo_voz, archivo_salida)
-        return
-
-    print("   [Pydub Audio Engine] Ensamblando master final...")
-    voz_segment = AudioSegment.from_file(archivo_voz)
-    DURACION_FADE_MS = 3000
-
-    if os.path.exists(ARCHIVO_FONDO):
-        fondo = AudioSegment.from_file(ARCHIVO_FONDO) - 12
-        if len(fondo) < len(voz_segment):
-            repetir = (len(voz_segment) // len(fondo)) + 1
-            fondo = fondo * repetir
-        fondo = fondo[:len(voz_segment)].fade_in(DURACION_FADE_MS).fade_out(DURACION_FADE_MS)
-        voz_segment = voz_segment.overlay(fondo)
-
-    audio_final = AudioSegment.empty()
-    if os.path.exists(ARCHIVO_INTRO):
-        intro = AudioSegment.from_file(ARCHIVO_INTRO).fade_out(DURACION_FADE_MS)
-        audio_final += intro
-
-    audio_final += voz_segment
-
-    if os.path.exists(ARCHIVO_OUTRO):
-        outro = AudioSegment.from_file(ARCHIVO_OUTRO).fade_in(DURACION_FADE_MS)
-        audio_final += outro
-
-    audio_final.export(archivo_salida, format="mp3", bitrate="192k")
-    if os.path.exists(archivo_voz):
-        os.remove(archivo_voz)
-    print(f"   [Éxito Master] Archivo final exportado en '{archivo_salida}'.")
-
-# ---------------------------------------------------------------------------
-# Orquestación del Pipeline
-# ---------------------------------------------------------------------------
-
-async def ejecutar_pipeline() -> None:
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        raise ValueError("CRÍTICO: La variable GEMINI_API_KEY no se encuentra presente en el entorno.")
-
-    client = genai.Client(
-        api_key=api_key,
-        http_options=types.HttpOptions(
-            timeout=300_000,
-            retry_options=types.HttpRetryOptions(attempts=2, initial_delay=5.0, max_delay=30.0)
-        )
-    )
-
-    print(f"[1/3] Extrayendo feeds RSS (Episodio {FECHA_STR})...")
-    noticias, titulos_usados = await obtener_titulares()
-
-    print("[2/3] Generando script conversacional con Gemini...")
-    guion = await generar_guion(client, noticias)
-    guardar_guion_texto(guion)
-    
-    if titulos_usados:
-        guardar_historico(titulos_usados)
-
-    palabras = len(guion.split())
-    minutos_estimados = round(palabras / 140, 1)
-    print(f"   Métricas del guion: {palabras} palabras (~{minutos_estimados} min).")
-
-    print("[3/3] Ejecutando motor de síntesis vocal...")
-    data_buffer, nombre_archivo_raw = await generar_audio_expresivo(client, guion)
-    with open(nombre_archivo_raw, "wb") as f:
-        f.write(data_buffer)
-
-    mezclar_audio_final(nombre_archivo_raw, ARCHIVO_SALIDA_FINAL)
-    print(f"Pipeline finalizado. Salidas: '{ARCHIVO_SALIDA_FINAL}' y '{ARCHIVO_GUION}'.")
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(ejecutar_pipeline())
-    except Exception as e:
-        print(f"::error title=Error Crítico en Pipeline::{e}")
-        sys.exit(1)
+    byte_rate = sample
