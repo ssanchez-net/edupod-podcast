@@ -11,7 +11,10 @@ permissions:
 
 jobs:
   procesar-podcast:
-    runs-on: ubuntu-latest
+    # Cambiamos a una versión fija de servidor para evitar colas de espera
+    runs-on: ubuntu-24.04
+    # Si la máquina no responde en 15 minutos, se cancela para no congelar el proceso
+    timeout-minutes: 15
 
     steps:
       - name: 1. Descargar el repositorio
@@ -32,11 +35,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install feedparser google-genai pydub
 
-      - name: 5. Ejecutar script de generación y mezcla de audio
+      - name: 5. Ejecutar script de generación con reintento automático
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PYTHONUNBUFFERED: "1"
-        run: python main.py
+        # Si falla el intento por un problema de red, GitHub reintenta ejecutar el script 1 vez más
+        run: python main.py || python main.py
 
       - name: 6. Persistir histórico de noticias en el repositorio
         run: |
