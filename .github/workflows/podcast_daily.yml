@@ -1,8 +1,8 @@
-name: Generador Semanal de Podcast EduPod
+name: Generador Semanal de Podcast Edu Radar
 
 on:
   schedule:
-    # Se ejecuta todos los viernes a las 06:00 UTC (00:00 hora del centro de México)
+    # Se ejecuta todos los viernes a las 06:00 UTC
     - cron: '0 6 * * 5'
   workflow_dispatch:
 
@@ -26,6 +26,7 @@ jobs:
         uses: actions/setup-python@v5.3.0
         with:
           python-version: '3.10'
+          cache: 'pip'
 
       - name: 4. Instalar librerías necesarias
         run: |
@@ -51,7 +52,7 @@ jobs:
         with:
           name: eduradar-episodio-semanal
           path: |
-            episodio_*.mp3
-            guion_*.txt
-          if-no-files-found: warn
+            episodio_ep*.mp3
+            guion_ep*.txt
+          if-no-files-found: error
           retention-days: 14
