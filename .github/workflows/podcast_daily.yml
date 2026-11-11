@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   procesar-podcast:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: 1. Descargar el repositorio
