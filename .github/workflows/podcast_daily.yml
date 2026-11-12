@@ -2,7 +2,7 @@ name: Generador Semanal de Podcast Edu Radar
 
 on:
   schedule:
-    # Se ejecuta todos los viernes a las 06:00 UTC
+    # Se ejecuta todos los viernes a las 06:00 UTC (00:00 hora del centro de México)
     - cron: '0 6 * * 5'
   workflow_dispatch:
 
@@ -11,9 +11,7 @@ permissions:
 
 jobs:
   procesar-podcast:
-    # Cambiamos a una versión fija de servidor para evitar colas de espera
     runs-on: ubuntu-24.04
-    # Si la máquina no responde en 15 minutos, se cancela para no congelar el proceso
     timeout-minutes: 15
 
     steps:
@@ -35,12 +33,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install feedparser google-genai pydub
 
-      - name: 5. Ejecutar script de generación con reintento automático
+      - name: 5. Ejecutar script de generación y mezcla de audio
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PYTHONUNBUFFERED: "1"
-        # Si falla el intento por un problema de red, GitHub reintenta ejecutar el script 1 vez más
-        run: python main.py || python main.py
+        run: python main.py
 
       - name: 6. Persistir histórico de noticias en el repositorio
         run: |
