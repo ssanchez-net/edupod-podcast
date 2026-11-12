@@ -122,8 +122,8 @@ async def obtener_titulares() -> tuple[str, list[str]]:
         )
         return bloque_fallback, ["Avances en Inteligencia Artificial Generativa y Evaluación Formativa"]
 
-    titulos_usados = [t[0] for t in todos_los_items[:12]]
-    bloques_texto = [t[1] for t in todos_los_items[:12]]
+    titulos_usados = [t[0] for t in todos_los_items[:7]]
+    bloques_texto = [t[1] for t in todos_los_items[:7]]
     return "\n".join(bloques_texto), titulos_usados
 
 # ---------------------------------------------------------------------------
