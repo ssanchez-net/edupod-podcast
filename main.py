@@ -18,7 +18,7 @@ except ImportError:
     AudioSegment = None
 
 # ---------------------------------------------------------------------------
-# Configuración Global
+# 1. Configuración Global
 # ---------------------------------------------------------------------------
 
 FECHA_STR = datetime.now().strftime("%d%m%Y")
@@ -55,7 +55,7 @@ MODELO_TEXTO = "gemini-3.8-flash"
 MODELO_TTS = "gemini-3.8-flash-tts"
 
 # ---------------------------------------------------------------------------
-# Ingesta y Control de Histórico
+# 2. Ingesta y Control de Histórico
 # ---------------------------------------------------------------------------
 
 def cargar_historico() -> list[str]:
@@ -127,7 +127,7 @@ async def obtener_titulares() -> tuple[str, list[str]]:
     return "\n".join(bloques_texto), titulos_usados
 
 # ---------------------------------------------------------------------------
-# Generación de Guion (Gemini API)
+# 3. Generación de Guion (Gemini API)
 # ---------------------------------------------------------------------------
 
 def construir_prompt_maestro(texto_noticias: str) -> str:
@@ -176,19 +176,22 @@ async def generar_guion(client: genai.Client, texto_noticias: str) -> str:
     prompt = construir_prompt_maestro(texto_noticias)
     print("   [Gemini API] Solicitando generación de guion...")
     
-    max_intentos = 5
+    max_intentos = 3
     for intento in range(1, max_intentos + 1):
         try:
             guion_texto = await asyncio.to_thread(_generar_texto_gemini, client, prompt)
             print("   [Éxito] Guion generado correctamente.")
             return guion_texto
         except (genai_errors.APIError, Exception) as e:
-            err_code = getattr(e, 'code', None)
-            is_rate_limit = err_code in [429, 503] or any(k in str(e) for k in ["429", "503", "EXHAUSTED", "UNAVAILABLE"])
+            err_str = str(e)
+            # Si es error 429 (cuota diaria agotada), abortar de inmediato para no gastar intentos
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                raise RuntimeError(f"Cuota diaria de Gemini API agotada (429). Abortando sin reintentos: {e}")
             
-            if is_rate_limit and intento < max_intentos:
-                espera = (2 ** intento) * 10
-                print(f"   [API Throttle {err_code or 'Error'}] Esperando {espera}s antes de reintentar (Intento {intento}/{max_intentos})...")
+            is_server_busy = "503" in err_str or "UNAVAILABLE" in err_str
+            if is_server_busy and intento < max_intentos:
+                espera = intento * 20
+                print(f"   [API Ocupada 503] Esperando {espera}s antes de reintentar (Intento {intento}/{max_intentos})...")
                 await asyncio.sleep(espera)
             else:
                 raise e
@@ -199,7 +202,7 @@ def guardar_guion_texto(guion_texto: str) -> None:
     print(f"   [OK] Guion guardado en '{ARCHIVO_GUION}'.")
 
 # ---------------------------------------------------------------------------
-# Síntesis TTS y Máquina de Estados de Voces
+# 4. Síntesis TTS y Máquina de Estados de Voces
 # ---------------------------------------------------------------------------
 
 def parse_audio_mime_type(mime_type: str) -> dict[str, int]:
@@ -228,4 +231,206 @@ def convert_to_wav(audio_data: bytes, mime_type: str) -> bytes:
     data_size = len(audio_data)
     bytes_per_sample = bits_per_sample // 8
     block_align = num_channels * bytes_per_sample
-    byte_rate = sample
+    byte_rate = sample_rate * block_align
+    chunk_size = 36 + data_size
+
+    header = struct.pack(
+        "<4sI4s4sIHHIIHH4sI",
+        b"RIFF",
+        chunk_size,
+        b"WAVE",
+        b"fmt ",
+        16,
+        1,
+        num_channels,
+        sample_rate,
+        byte_rate,
+        block_align,
+        bits_per_sample,
+        b"data",
+        data_size
+    )
+    return header + audio_data
+
+def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[bytes, str]:
+    lineas = guion_texto.strip().split("\n")
+    parts = []
+    current_speaker = "Speaker 1"
+
+    for linea in lineas:
+        linea_limpia = linea.strip()
+        if not linea_limpia:
+            continue
+
+        if re.match(r"^SOFÍ?A:\s*$", linea_limpia, flags=re.IGNORECASE):
+            current_speaker = "Speaker 1"
+            continue
+        elif re.match(r"^ALEJANDRO:\s*$", linea_limpia, flags=re.IGNORECASE):
+            current_speaker = "Speaker 2"
+            continue
+        elif linea_limpia.upper().startswith("SOFÍA:") or linea_limpia.upper().startswith("SOFIA:"):
+            current_speaker = "Speaker 1"
+            texto_hablado = re.sub(r"^SOFÍ?A:\s*", "", linea_limpia, flags=re.IGNORECASE)
+        elif linea_limpia.upper().startswith("ALEJANDRO:"):
+            current_speaker = "Speaker 2"
+            texto_hablado = re.sub(r"^ALEJANDRO:\s*", "", linea_limpia, flags=re.IGNORECASE)
+        else:
+            texto_hablado = linea_limpia
+
+        texto_hablado = re.sub(r"\bEdu-?Radar\b", "Edu Radar", texto_hablado, flags=re.IGNORECASE)
+        texto_hablado = html.unescape(texto_hablado).strip()
+
+        if texto_hablado:
+            parts.append(
+                types.Part(
+                    text=texto_hablado,
+                    speech_metadata=types.SpeechMetadata(speaker=current_speaker)
+                )
+            )
+
+    contents = [types.Content(role="user", parts=parts)]
+
+    generate_content_config = types.GenerateContentConfig(
+        temperature=1.0,
+        response_modalities=["audio"],
+        speech_config=types.SpeechConfig(
+            multi_speaker_voice_config=types.MultiSpeakerVoiceConfig(
+                speaker_voice_configs=[
+                    types.SpeakerVoiceConfig(
+                        speaker="Speaker 1",
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Jori")
+                        )
+                    ),
+                    types.SpeakerVoiceConfig(
+                        speaker="Speaker 2",
+                        voice_config=types.VoiceConfig(
+                            prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Rami")
+                        )
+                    ),
+                ]
+            )
+        )
+    )
+
+    audio_data = bytearray()
+    mime_type = ""
+
+    for chunk in client.models.generate_content_stream(
+        model=MODELO_TTS,
+        contents=contents,
+        config=generate_content_config,
+    ):
+        if chunk.parts is None:
+            continue
+        if chunk.parts[0].inline_data and chunk.parts[0].inline_data.data:
+            inline_data = chunk.parts[0].inline_data
+            audio_data.extend(inline_data.data)
+            mime_type = inline_data.mime_type
+
+    if not audio_data:
+        raise ValueError("No se recibieron datos de audio desde el modelo Gemini TTS.")
+
+    data_buffer = bytes(audio_data)
+    file_extension = mimetypes.guess_extension(mime_type)
+    if file_extension is None or not mime_type.startswith("audio/wav"):
+        data_buffer = convert_to_wav(bytes(audio_data), mime_type)
+
+    return data_buffer, ARCHIVO_VOZ_WAV
+
+async def generar_audio_expresivo(client: genai.Client, guion_texto: str) -> tuple[bytes, str]:
+    print("   [Gemini TTS] Generando audio a dos voces (Sofía=Jori, Alejandro=Rami)...")
+    max_intentos = 3
+    for intento in range(1, max_intentos + 1):
+        try:
+            return await asyncio.to_thread(_sintetizar_audio_multivoz, client, guion_texto)
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                raise RuntimeError(f"Cuota TTS agotada (429): {e}")
+            if intento < max_intentos:
+                espera = intento * 20
+                print(f"   [Reintento TTS] Error temporal ({e}). Reintentando en {espera}s...")
+                await asyncio.sleep(espera)
+            else:
+                raise e
+
+# ---------------------------------------------------------------------------
+# 5. Mezcla de Audio Profesional
+# ---------------------------------------------------------------------------
+
+def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
+    if AudioSegment is None:
+        print("   [Aviso] pydub no disponible. Conservando audio sin cortinillas.")
+        os.rename(archivo_voz, archivo_salida)
+        return
+
+    print("   [Audio Post-Procesamiento] Ensamblando cortinillas y música de fondo...")
+    voz_segment = AudioSegment.from_file(archivo_voz)
+    DURACION_FADE_MS = 3000
+
+    if os.path.exists(ARCHIVO_FONDO):
+        fondo = AudioSegment.from_file(ARCHIVO_FONDO) - 12
+        if len(fondo) < len(voz_segment):
+            repetir = (len(voz_segment) // len(fondo)) + 1
+            fondo = fondo * repetir
+        fondo = fondo[:len(voz_segment)].fade_in(DURACION_FADE_MS).fade_out(DURACION_FADE_MS)
+        voz_segment = voz_segment.overlay(fondo)
+
+    audio_final = AudioSegment.empty()
+    if os.path.exists(ARCHIVO_INTRO):
+        intro = AudioSegment.from_file(ARCHIVO_INTRO).fade_out(DURACION_FADE_MS)
+        audio_final += intro
+
+    audio_final += voz_segment
+
+    if os.path.exists(ARCHIVO_OUTRO):
+        outro = AudioSegment.from_file(ARCHIVO_OUTRO).fade_in(DURACION_FADE_MS)
+        audio_final += outro
+
+    audio_final.export(archivo_salida, format="mp3", bitrate="192k")
+    if os.path.exists(archivo_voz):
+        os.remove(archivo_voz)
+    print(f"   [OK] Episodio masterizado guardado en '{archivo_salida}'.")
+
+# ---------------------------------------------------------------------------
+# 6. Punto de Entrada Principal
+# ---------------------------------------------------------------------------
+
+async def ejecutar_pipeline() -> None:
+    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise ValueError("CRÍTICO: GEMINI_API_KEY no está configurada en GitHub Secrets.")
+
+    client = genai.Client(
+        api_key=api_key,
+        http_options=types.HttpOptions(timeout=300_000)
+    )
+
+    print(f"[1/3] Obteniendo noticias RSS para el episodio {FECHA_STR}...")
+    noticias, titulos_usados = await obtener_titulares()
+
+    print("[2/3] Generando guion expresivo con Gemini API...")
+    guion = await generar_guion(client, noticias)
+    guardar_guion_texto(guion)
+    
+    if titulos_usados:
+        guardar_historico(titulos_usados)
+
+    palabras = len(guion.split())
+    print(f"   Guion redactado ({palabras} palabras).")
+
+    print("[3/3] Sintetizando audio expresivo (Gemini 3.8 Flash TTS)...")
+    data_buffer, nombre_archivo_raw = await generar_audio_expresivo(client, guion)
+    with open(nombre_archivo_raw, "wb") as f:
+        f.write(data_buffer)
+
+    mezclar_audio_final(nombre_archivo_raw, ARCHIVO_SALIDA_FINAL)
+    print(f"¡Proceso completado! Archivos '{ARCHIVO_SALIDA_FINAL}' y '{ARCHIVO_GUION}' generados.")
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(ejecutar_pipeline())
+    except Exception as e:
+        print(f"::error title=Fallo del Pipeline::{e}")
+        sys.exit(1)
