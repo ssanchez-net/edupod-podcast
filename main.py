@@ -51,7 +51,8 @@ RSS_FEEDS = [
     "https://elpais.com/rss/elpais/educacion.xml"
 ]
 
-MODELO_TEXTO = "gemini-3.8-flash"
+MODELO_TEXTO_PRIMARIO = "gemini-3.8-flash"
+MODELO_TEXTO_RESPALDO = "gemini-2.5-flash"
 MODELO_TTS = "gemini-3.8-flash-tts"
 
 # ---------------------------------------------------------------------------
@@ -162,17 +163,40 @@ NOTICIAS FUENTE DISPONIBLES:
 {texto_noticias}
 """
 
-def _generar_texto_gemini(client: genai.Client, prompt: str) -> str:
+def _generar_texto_gemini(client: genai.Client, prompt: str, modelo: str) -> str:
     response = client.models.generate_content(
-        model=MODELO_TEXTO,
+        model=modelo,
         contents=prompt,
         config=types.GenerateContentConfig(temperature=0.7)
     )
     if not response.text:
-        raise ValueError("La respuesta del modelo de texto volvió vacía.")
+        raise ValueError(f"La respuesta del modelo {modelo} volvió vacía.")
     return response.text
 
 async def generar_guion(client: genai.Client, texto_noticias: str) -> str:
+    prompt = construir_prompt_maestro(texto_noticias)
+    modelos_cascada = [MODELO_TEXTO_PRIMARIO, MODELO_TEXTO_RESPALDO]
+
+    for modelo_actual in modelos_cascada:
+        print(f"   [Gemini API] Solicitando guion con {modelo_actual}...")
+        for intento in range(1, 3):
+            try:
+                guion_texto = await asyncio.to_thread(_generar_texto_gemini, client, prompt, modelo_actual)
+                print(f"   [Éxito] Guion generado correctamente usando {modelo_actual}.")
+                return guion_texto
+            except (genai_errors.APIError, Exception) as e:
+                err_str = str(e)
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                    print(f"   [Cuota Agotada 429] {modelo_actual} sin cuota. Probando respaldo si existe...")
+                    break
+                if ("503" in err_str or "504" in err_str or "UNAVAILABLE" in err_str) and intento < 2:
+                    print(f"   [API Ocupada] {modelo_actual} saturado. Reintentando en 20s...")
+                    await asyncio.sleep(20)
+                else:
+                    print(f"   [Fallo en {modelo_actual}] {e}. Conmutando a modelo de respaldo...")
+                    break
+
+    raise RuntimeError("Todos los modelos de texto en cascada fallaron por saturación o cuota.")
     prompt = construir_prompt_maestro(texto_noticias)
     print("   [Gemini API] Solicitando generación de guion...")
     
