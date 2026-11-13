@@ -51,8 +51,9 @@ RSS_FEEDS = [
     "https://elpais.com/rss/elpais/educacion.xml"
 ]
 
+# Nomenclatura actualizada para Google AI Studio
 MODELO_TEXTO_PRIMARIO = "gemini-3.8-flash"
-MODELO_TEXTO_RESPALDO = "gemini-2.5-flash"
+MODELO_TEXTO_RESPALDO = "gemini-3.5-flash-lite"
 MODELO_TTS = "gemini-3.8-flash-tts"
 
 # ---------------------------------------------------------------------------
@@ -123,6 +124,7 @@ async def obtener_titulares() -> tuple[str, list[str]]:
         )
         return bloque_fallback, ["Avances en Inteligencia Artificial Generativa y Evaluación Formativa"]
 
+    # Reducción de carga cognitiva para evitar 504 DEADLINE_EXCEEDED
     titulos_usados = [t[0] for t in todos_los_items[:7]]
     bloques_texto = [t[1] for t in todos_los_items[:7]]
     return "\n".join(bloques_texto), titulos_usados
@@ -190,35 +192,14 @@ async def generar_guion(client: genai.Client, texto_noticias: str) -> str:
                     print(f"   [Cuota Agotada 429] {modelo_actual} sin cuota. Probando respaldo si existe...")
                     break
                 if ("503" in err_str or "504" in err_str or "UNAVAILABLE" in err_str) and intento < 2:
-                    print(f"   [API Ocupada] {modelo_actual} saturado. Reintentando en 20s...")
-                    await asyncio.sleep(20)
+                    tiempo_espera = 45 # Backoff ampliado para permitir recuperación de servidor
+                    print(f"   [API Ocupada] {modelo_actual} saturado. Reintentando en {tiempo_espera}s...")
+                    await asyncio.sleep(tiempo_espera)
                 else:
                     print(f"   [Fallo en {modelo_actual}] {e}. Conmutando a modelo de respaldo...")
                     break
 
-    raise RuntimeError("Todos los modelos de texto en cascada fallaron por saturación o cuota.")
-    prompt = construir_prompt_maestro(texto_noticias)
-    print("   [Gemini API] Solicitando generación de guion...")
-    
-    max_intentos = 3
-    for intento in range(1, max_intentos + 1):
-        try:
-            guion_texto = await asyncio.to_thread(_generar_texto_gemini, client, prompt)
-            print("   [Éxito] Guion generado correctamente.")
-            return guion_texto
-        except (genai_errors.APIError, Exception) as e:
-            err_str = str(e)
-            # Si es error 429 (cuota diaria agotada), abortar de inmediato para no gastar intentos
-            if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
-                raise RuntimeError(f"Cuota diaria de Gemini API agotada (429). Abortando sin reintentos: {e}")
-            
-            is_server_busy = "503" in err_str or "UNAVAILABLE" in err_str
-            if is_server_busy and intento < max_intentos:
-                espera = intento * 20
-                print(f"   [API Ocupada 503] Esperando {espera}s antes de reintentar (Intento {intento}/{max_intentos})...")
-                await asyncio.sleep(espera)
-            else:
-                raise e
+    raise RuntimeError("CRÍTICO: Todos los modelos de texto en cascada fallaron por saturación extrema o cuota agotada.")
 
 def guardar_guion_texto(guion_texto: str) -> None:
     with open(ARCHIVO_GUION, "w", encoding="utf-8") as f:
