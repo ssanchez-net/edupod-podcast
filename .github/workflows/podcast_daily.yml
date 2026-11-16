@@ -33,21 +33,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install feedparser google-genai pydub
 
-      - name: 5. Ejecutar script de generación y mezcla de audio
+      - name: 5. Ejecutar script de generación, audio y feed RSS
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PYTHONUNBUFFERED: "1"
         run: python main.py
 
-      - name: 6. Persistir histórico de noticias en el repositorio
+      - name: 6. Publicar episodio, metadatos y feed.xml en GitHub Pages
         run: |
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-          git add historico_noticias.json || true
-          git commit -m "Auto-update: historico semanal de noticias [skip ci]" || echo "Sin cambios en el histórico"
+          git add historico_noticias.json episodios.json feed.xml index.html episodio_ep*.mp3 guion_ep*.txt || true
+          git commit -m "Auto-publish: nuevo episodio y actualizacion RSS [skip ci]" || echo "Sin cambios que publicar"
           git push || true
 
-      - name: 7. Almacenar los archivos MP3 y TXT generados
+      - name: 7. Respaldar artefactos MP3 y TXT
         uses: actions/upload-artifact@v4
         with:
           name: eduradar-episodio-semanal
