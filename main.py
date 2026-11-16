@@ -6,7 +6,9 @@ import json
 import struct
 import mimetypes
 import asyncio
-from datetime import datetime
+import email.utils
+import xml.etree.ElementTree as ET
+from datetime import datetime, timezone
 from google import genai
 from google.genai import errors as genai_errors
 from google.genai import types
@@ -18,14 +20,32 @@ except ImportError:
     AudioSegment = None
 
 # ---------------------------------------------------------------------------
-# 1. Configuración Global
+# 1. Configuración Global y Metadatos del Programa
 # ---------------------------------------------------------------------------
+
+BASE_URL = "https://ssanchez-net.github.io/edupod-podcast"
+PODCAST_TITULO = "Edu Radar"
+PODCAST_DESCRIPCION = (
+    "Tu radar semanal sobre el futuro de la educación. Cada martes y viernes, Sofía y Alejandro "
+    "analizan las noticias más relevantes en tecnología educativa (EdTech), inteligencia artificial "
+    "aplicada al aula, pedagogía digital e innovación académica en instituciones de todo el mundo. "
+    "Un espacio ágil y directo para docentes, directivos y apasionados por transformar el aprendizaje."
+)
+PODCAST_AUTOR = "Edumedios"
+PODCAST_EMAIL = "contacto@edumedios.com"
+PODCAST_IDIOMA = "es-mx"
+PODCAST_CATEGORIA = "Education"
+PODCAST_SUBCATEGORIA = "Technology"
+URL_PORTADA = f"{BASE_URL}/portada.jpg"
 
 FECHA_STR = datetime.now().strftime("%d%m%Y")
 ARCHIVO_VOZ_WAV = f"voz_raw_{FECHA_STR}.wav"
 ARCHIVO_SALIDA_FINAL = f"episodio_ep{FECHA_STR}.mp3"
 ARCHIVO_GUION = f"guion_ep{FECHA_STR}.txt"
 ARCHIVO_HISTORICO = "historico_noticias.json"
+ARCHIVO_EPISODIOS_DB = "episodios.json"
+ARCHIVO_FEED_XML = "feed.xml"
+ARCHIVO_INDEX_HTML = "index.html"
 
 ARCHIVO_INTRO = "intro.mp3"
 ARCHIVO_OUTRO = "outro.mp3"
@@ -51,7 +71,6 @@ RSS_FEEDS = [
     "https://elpais.com/rss/elpais/educacion.xml"
 ]
 
-# Nomenclatura actualizada para Google AI Studio
 MODELO_TEXTO_PRIMARIO = "gemini-3.8-flash"
 MODELO_TEXTO_RESPALDO = "gemini-3.5-flash-lite"
 MODELO_TTS = "gemini-3.8-flash-tts"
@@ -74,7 +93,7 @@ def guardar_historico(nuevos_titulos: list[str]) -> None:
         return
     historico = cargar_historico()
     historico.extend(nuevos_titulos)
-    historico = historico[-100:]
+    historico = historico[-150:]
     with open(ARCHIVO_HISTORICO, "w", encoding="utf-8") as f:
         json.dump(historico, f, ensure_ascii=False, indent=2)
 
@@ -111,9 +130,8 @@ async def obtener_titulares() -> tuple[str, list[str]]:
     historico = cargar_historico()
     tareas = [asyncio.to_thread(_parsear_feed, url, historico) for url in RSS_FEEDS]
     resultados = await asyncio.gather(*tareas)
-    
     todos_los_items = [item for grupo in resultados for item in grupo]
-    
+
     if not todos_los_items:
         print("   [Fallback RSS] No se detectaron noticias inéditas. Aplicando tema de respaldo EdTech...")
         bloque_fallback = (
@@ -124,16 +142,15 @@ async def obtener_titulares() -> tuple[str, list[str]]:
         )
         return bloque_fallback, ["Avances en Inteligencia Artificial Generativa y Evaluación Formativa"]
 
-    # Reducción de carga cognitiva para evitar 504 DEADLINE_EXCEEDED
     titulos_usados = [t[0] for t in todos_los_items[:7]]
     bloques_texto = [t[1] for t in todos_los_items[:7]]
     return "\n".join(bloques_texto), titulos_usados
 
 # ---------------------------------------------------------------------------
-# 3. Generación de Guion (Gemini API)
+# 3. Generación Estructurada de Metadatos y Guion (Gemini API)
 # ---------------------------------------------------------------------------
 
-def construir_prompt_maestro(texto_noticias: str) -> str:
+def construir_prompt_maestro(texto_noticias: str, numero_episodio: int) -> str:
     meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
     ahora = datetime.now()
     fecha_hoy = f"{ahora.day} de {meses[ahora.month - 1]} de {ahora.year}"
@@ -143,63 +160,67 @@ Actúa como un equipo de dos periodistas y locutores profesionales de podcast so
 - SOFÍA (Speaker 1): Presentadora principal, analítica, apasionada por la pedagogía e inclusión. Tono: Friendly, amigable, cálido.
 - ALEJANDRO (Speaker 2): Co-presentador, dinámico, enfocado en tecnología e impacto práctico. Tono: Friendly, cercano, empático.
 
-Tu objetivo es redactar un guion COMPLETO en formato de DIÁLOGO CÁLIDO Y ENTERTAINING para el podcast "Edu Radar".
+Debes devolver ÚNICAMENTE un objeto JSON válido (sin bloques de código markdown ```json) con exactamente tres claves: "titulo", "descripcion" y "guion".
 
-TARGET DE EXTENSIÓN: Entre 750 y 950 PALABRAS (5 a 7 minutos de locución).
-
-REGLAS DE FORMATO Y EXPRESIVIDAD:
-1. PRONUNCIACIÓN DEL NOMBRE: Escribe SIEMPRE el nombre del podcast separado con espacio como `Edu Radar` (SIN GUIÓN).
-2. ETIQUETAS VOCALES: Integra de forma natural las siguientes marcas expresivas: `<breath>`, `<chuckle>`, `<enthusiastic>`, `<astonishment>`, `<sigh>`.
-3. ESTRUCTURA OBLIGATORIA:
-   - APERTURA: Saludo directo, mención de "Edu Radar" y fecha exacta "{fecha_hoy}".
-   - DESARROLLO: Análisis fluido de las noticias con turnos secuenciales entre Sofía y Alejandro.
-   - CIERRE: Pregunta provocadora, llamado a la acción (CTA) y despedida exacta: "¡Hasta la próxima emisión de Edu Radar!".
-
-RESTRICCIONES ESTRICTAS:
-- Cada intervención DEBE iniciar obligatoriamente con `SOFÍA:` o `ALEJANDRO:`.
-- NO intercales roles en la misma línea.
-- NO agregues acotaciones entre corchetes rectos `[...]`.
-- NO uses formato Markdown (sin asteriscos, sin `#`, sin viñetas).
+ESPECIFICACIONES DE CADA CLAVE DEL JSON:
+1. "titulo": Título atractivo y SEO para el episodio número {numero_episodio} (máximo 140 caracteres), iniciando exactamente con "Ep. {numero_episodio}: ".
+2. "descripcion": Descripción enriquecida para Spotify y Apple Podcasts (entre 400 y 900 caracteres) que resuma los temas principales, incluya viñetas con "• " y cierre con la pregunta de debate del episodio y un llamado a suscribirse.
+3. "guion": Guion COMPLETO en formato de DIÁLOGO CÁLIDO Y ENTERTAINING para el podcast "Edu Radar" con estas reglas estrictas:
+   - TARGET DE EXTENSIÓN DEL GUION: Entre 750 y 950 PALABRAS (5 a 7 minutos de locución).
+   - PRONUNCIACIÓN DEL NOMBRE: Escribe SIEMPRE el nombre del podcast separado con espacio como `Edu Radar` (SIN GUIÓN).
+   - ETIQUETAS VOCALES: Integra de forma natural las marcas expresivas: `<breath>`, `<chuckle>`, `<enthusiastic>`, `<astonishment>`, `<sigh>`.
+   - ESTRUCTURA OBLIGATORIA DEL GUION:
+     * APERTURA: Saludo directo, mención de "Edu Radar" y fecha exacta "{fecha_hoy}".
+     * DESARROLLO: Análisis fluido de las noticias con turnos secuenciales entre Sofía y Alejandro.
+     * CIERRE: Pregunta provocadora, llamado a la acción (CTA) y despedida exacta: "¡Hasta la próxima emisión de Edu Radar!".
+   - RESTRICCIONES DEL GUION: Cada intervención DEBE iniciar con `SOFÍA:` o `ALEJANDRO:` separado por saltos de línea (`\\n\\n`). NO intercales roles en la misma línea. NO uses acotaciones `[...]` ni formato Markdown (`*`, `#`).
 
 NOTICIAS FUENTE DISPONIBLES:
 {texto_noticias}
 """
 
-def _generar_texto_gemini(client: genai.Client, prompt: str, modelo: str) -> str:
+def _generar_json_gemini(client: genai.Client, prompt: str, modelo: str) -> dict:
     response = client.models.generate_content(
         model=modelo,
         contents=prompt,
-        config=types.GenerateContentConfig(temperature=0.7)
+        config=types.GenerateContentConfig(
+            temperature=0.7,
+            response_mime_type="application/json"
+        )
     )
     if not response.text:
         raise ValueError(f"La respuesta del modelo {modelo} volvió vacía.")
-    return response.text
+    texto_limpio = re.sub(r"^```(?:json)?\s*|\s*```$", "", response.text.strip())
+    datos = json.loads(texto_limpio)
+    if not all(k in datos and datos[k] for k in ("titulo", "descripcion", "guion")):
+        raise ValueError("El JSON devuelto no contiene las claves requeridas (titulo, descripcion, guion).")
+    return datos
 
-async def generar_guion(client: genai.Client, texto_noticias: str) -> str:
-    prompt = construir_prompt_maestro(texto_noticias)
+async def generar_contenido_episodio(client: genai.Client, texto_noticias: str, numero_episodio: int) -> dict:
+    prompt = construir_prompt_maestro(texto_noticias, numero_episodio)
     modelos_cascada = [MODELO_TEXTO_PRIMARIO, MODELO_TEXTO_RESPALDO]
 
     for modelo_actual in modelos_cascada:
-        print(f"   [Gemini API] Solicitando guion con {modelo_actual}...")
+        print(f"   [Gemini API] Solicitando metadatos y guion con {modelo_actual}...")
         for intento in range(1, 3):
             try:
-                guion_texto = await asyncio.to_thread(_generar_texto_gemini, client, prompt, modelo_actual)
-                print(f"   [Éxito] Guion generado correctamente usando {modelo_actual}.")
-                return guion_texto
+                datos = await asyncio.to_thread(_generar_json_gemini, client, prompt, modelo_actual)
+                print(f"   [Éxito] Contenido estructurado generado usando {modelo_actual}.")
+                return datos
             except (genai_errors.APIError, Exception) as e:
                 err_str = str(e)
                 if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
                     print(f"   [Cuota Agotada 429] {modelo_actual} sin cuota. Probando respaldo si existe...")
                     break
                 if ("503" in err_str or "504" in err_str or "UNAVAILABLE" in err_str) and intento < 2:
-                    tiempo_espera = 45 # Backoff ampliado para permitir recuperación de servidor
+                    tiempo_espera = 45
                     print(f"   [API Ocupada] {modelo_actual} saturado. Reintentando en {tiempo_espera}s...")
                     await asyncio.sleep(tiempo_espera)
                 else:
                     print(f"   [Fallo en {modelo_actual}] {e}. Conmutando a modelo de respaldo...")
                     break
 
-    raise RuntimeError("CRÍTICO: Todos los modelos de texto en cascada fallaron por saturación extrema o cuota agotada.")
+    raise RuntimeError("CRÍTICO: Todos los modelos de texto en cascada fallaron.")
 
 def guardar_guion_texto(guion_texto: str) -> None:
     with open(ARCHIVO_GUION, "w", encoding="utf-8") as f:
@@ -241,19 +262,9 @@ def convert_to_wav(audio_data: bytes, mime_type: str) -> bytes:
 
     header = struct.pack(
         "<4sI4s4sIHHIIHH4sI",
-        b"RIFF",
-        chunk_size,
-        b"WAVE",
-        b"fmt ",
-        16,
-        1,
-        num_channels,
-        sample_rate,
-        byte_rate,
-        block_align,
-        bits_per_sample,
-        b"data",
-        data_size
+        b"RIFF", chunk_size, b"WAVE", b"fmt ", 16, 1,
+        num_channels, sample_rate, byte_rate, block_align,
+        bits_per_sample, b"data", data_size
     )
     return header + audio_data
 
@@ -266,7 +277,6 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
         linea_limpia = linea.strip()
         if not linea_limpia:
             continue
-
         if re.match(r"^SOFÍ?A:\s*$", linea_limpia, flags=re.IGNORECASE):
             current_speaker = "Speaker 1"
             continue
@@ -294,7 +304,6 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
             )
 
     contents = [types.Content(role="user", parts=parts)]
-
     generate_content_config = types.GenerateContentConfig(
         temperature=1.0,
         response_modalities=["audio"],
@@ -320,7 +329,6 @@ def _sintetizar_audio_multivoz(client: genai.Client, guion_texto: str) -> tuple[
 
     audio_data = bytearray()
     mime_type = ""
-
     for chunk in client.models.generate_content_stream(
         model=MODELO_TTS,
         contents=contents,
@@ -364,11 +372,10 @@ async def generar_audio_expresivo(client: genai.Client, guion_texto: str) -> tup
 # 5. Mezcla de Audio Profesional
 # ---------------------------------------------------------------------------
 
-def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
+def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> int:
     if AudioSegment is None:
-        print("   [Aviso] pydub no disponible. Conservando audio sin cortinillas.")
         os.rename(archivo_voz, archivo_salida)
-        return
+        return 360
 
     print("   [Audio Post-Procesamiento] Ensamblando cortinillas y música de fondo...")
     voz_segment = AudioSegment.from_file(archivo_voz)
@@ -393,13 +400,147 @@ def mezclar_audio_final(archivo_voz: str, archivo_salida: str) -> None:
         outro = AudioSegment.from_file(ARCHIVO_OUTRO).fade_in(DURACION_FADE_MS)
         audio_final += outro
 
+    duracion_segundos = int(len(audio_final) / 1000)
     audio_final.export(archivo_salida, format="mp3", bitrate="192k")
     if os.path.exists(archivo_voz):
         os.remove(archivo_voz)
-    print(f"   [OK] Episodio masterizado guardado en '{archivo_salida}'.")
+    print(f"   [OK] Episodio masterizado guardado en '{archivo_salida}' ({duracion_segundos}s).")
+    return duracion_segundos
 
 # ---------------------------------------------------------------------------
-# 6. Punto de Entrada Principal
+# 6. Gestión de Base de Episodios y Generación de Feed RSS + Web
+# ---------------------------------------------------------------------------
+
+def cargar_o_inicializar_episodios() -> list[dict]:
+    if os.path.exists(ARCHIVO_EPISODIOS_DB):
+        try:
+            with open(ARCHIVO_EPISODIOS_DB, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+
+    episodio_1 = {
+        "numero": 1,
+        "temporada": 1,
+        "titulo": "Ep. 1: El fin del ensayo tradicional, arte contemporáneo y el futuro del talento internacional",
+        "descripcion": (
+            "En este episodio de Edu Radar, Sofía y Alejandro analizan cómo la inteligencia artificial generativa "
+            "está obligando a transformar las tareas escolares y el fin del ensayo tradicional para llevar a casa. "
+            "Además, reflexionamos sobre el pensamiento crítico a través del arte contemporáneo, los retos de la "
+            "educación cívica y la libertad de expresión en las aulas, y la iniciativa clave en Filadelfia para "
+            "retener el talento universitario internacional.\n\n"
+            "Temas clave de la emisión:\n"
+            "• La evolución de la pedagogía frente a la IA generativa.\n"
+            "• El arte y la provocación como herramientas de pensamiento crítico.\n"
+            "• Educación cívica, democracia y libertad de cátedra.\n"
+            "• Integración y retención de talento internacional en la educación superior.\n\n"
+            "Frente a un mundo saturado de respuestas automatizadas, ¿qué práctica estás implementando hoy para "
+            "estimular el pensamiento propio de tus estudiantes? ¡Suscríbete y compártelo!"
+        ),
+        "archivo_mp3": "episodio_ep13112026.mp3",
+        "bytes": os.path.getsize("episodio_ep13112026.mp3") if os.path.exists("episodio_ep13112026.mp3") else 8890000,
+        "duracion_seg": 360,
+        "pub_date": "Fri, 13 Nov 2026 06:15:00 +0000",
+        "guid": "eduradar-ep-1-13112026"
+    }
+    return [episodio_1]
+
+def generar_rss_y_web(episodios: list[dict]) -> None:
+    ITUNES_NS = "[http://www.itunes.com/dtds/podcast-1.0.dtd](http://www.itunes.com/dtds/podcast-1.0.dtd)"
+    ATOM_NS = "[http://www.w3.org/2005/Atom](http://www.w3.org/2005/Atom)"
+    ET.register_namespace("itunes", ITUNES_NS)
+    ET.register_namespace("atom", ATOM_NS)
+
+    rss = ET.Element("rss", {"version": "2.0"})
+    channel = ET.SubElement(rss, "channel")
+
+    ET.SubElement(channel, f"{{{ATOM_NS}}}link", {
+        "href": f"{BASE_URL}/{ARCHIVO_FEED_XML}",
+        "rel": "self",
+        "type": "application/rss+xml"
+    })
+    ET.SubElement(channel, "title").text = PODCAST_TITULO
+    ET.SubElement(channel, "link").text = BASE_URL
+    ET.SubElement(channel, "language").text = PODCAST_IDIOMA
+    ET.SubElement(channel, "description").text = PODCAST_DESCRIPCION
+    ET.SubElement(channel, f"{{{ITUNES_NS}}}author").text = PODCAST_AUTOR
+    ET.SubElement(channel, f"{{{ITUNES_NS}}}summary").text = PODCAST_DESCRIPCION
+    ET.SubElement(channel, f"{{{ITUNES_NS}}}explicit").text = "false"
+    ET.SubElement(channel, f"{{{ITUNES_NS}}}type").text = "episodic"
+
+    owner = ET.SubElement(channel, f"{{{ITUNES_NS}}}owner")
+    ET.SubElement(owner, f"{{{ITUNES_NS}}}name").text = PODCAST_AUTOR
+    ET.SubElement(owner, f"{{{ITUNES_NS}}}email").text = PODCAST_EMAIL
+
+    ET.SubElement(channel, f"{{{ITUNES_NS}}}image", {"href": URL_PORTADA})
+    img_std = ET.SubElement(channel, "image")
+    ET.SubElement(img_std, "url").text = URL_PORTADA
+    ET.SubElement(img_std, "title").text = PODCAST_TITULO
+    ET.SubElement(img_std, "link").text = BASE_URL
+
+    cat = ET.SubElement(channel, f"{{{ITUNES_NS}}}category", {"text": PODCAST_CATEGORIA})
+    ET.SubElement(cat, f"{{{ITUNES_NS}}}category", {"text": PODCAST_SUBCATEGORIA})
+
+    for ep in reversed(episodios):
+        item = ET.SubElement(channel, "item")
+        ET.SubElement(item, "title").text = ep["titulo"]
+        ET.SubElement(item, "description").text = ep["descripcion"]
+        ET.SubElement(item, f"{{{ITUNES_NS}}}summary").text = ep["descripcion"]
+        ET.SubElement(item, "pubDate").text = ep["pub_date"]
+        ET.SubElement(item, "guid", {"isPermaLink": "false"}).text = ep["guid"]
+        ET.SubElement(item, "enclosure", {
+            "url": f"{BASE_URL}/{ep['archivo_mp3']}",
+            "length": str(ep["bytes"]),
+            "type": "audio/mpeg"
+        })
+        ET.SubElement(item, f"{{{ITUNES_NS}}}duration").text = str(ep["duracion_seg"])
+        ET.SubElement(item, f"{{{ITUNES_NS}}}explicit").text = "false"
+        ET.SubElement(item, f"{{{ITUNES_NS}}}episodeType").text = "full"
+        ET.SubElement(item, f"{{{ITUNES_NS}}}season").text = str(ep.get("temporada", 1))
+        ET.SubElement(item, f"{{{ITUNES_NS}}}episode").text = str(ep["numero"])
+        ET.SubElement(item, f"{{{ITUNES_NS}}}image", {"href": URL_PORTADA})
+
+    tree = ET.ElementTree(rss)
+    ET.indent(tree, space="  ")
+    tree.write(ARCHIVO_FEED_XML, encoding="utf-8", xml_declaration=True)
+    print(f"   [OK] Canal RSS actualizado en '{ARCHIVO_FEED_XML}'.")
+
+    items_html = ""
+    for ep in reversed(episodios):
+        items_html += f"""
+        <article style="background:#111827;padding:20px;border-radius:12px;margin-bottom:16px;border:1px solid #1f2937;">
+            <h2 style="margin:0 0 8px 0;color:#a3e635;font-size:1.2rem;">{html.escape(ep['titulo'])}</h2>
+            <p style="color:#9ca3af;font-size:0.85rem;margin:0 0 12px 0;">{ep['pub_date']}</p>
+            <p style="color:#e5e7eb;line-height:1.5;white-space:pre-line;">{html.escape(ep['descripcion'])}</p>
+            <audio controls style="width:100%;margin-top:12px;" src="{ep['archivo_mp3']}"></audio>
+        </article>
+        """
+
+    pagina_html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{PODCAST_TITULO} - By {PODCAST_AUTOR}</title>
+</head>
+<body style="background:#030712;color:#f9fafb;font-family:system-ui,-apple-system,sans-serif;max-width:760px;margin:0 auto;padding:32px 16px;">
+    <header style="display:flex;align-items:center;gap:20px;margin-bottom:32px;">
+        <img src="portada.jpg" alt="{PODCAST_TITULO}" style="width:120px;height:120px;border-radius:16px;">
+        <div>
+            <h1 style="margin:0;font-size:2rem;">{PODCAST_TITULO}</h1>
+            <p style="color:#a3e635;margin:4px 0 8px 0;font-weight:600;">By {PODCAST_AUTOR}</p>
+            <a href="{ARCHIVO_FEED_XML}" style="display:inline-block;background:#2563eb;color:#fff;padding:6px 14px;border-radius:8px;text-decoration:none;font-size:0.9rem;">Suscribirse vía RSS</a>
+        </div>
+    </header>
+    <main>{items_html}</main>
+</body>
+</html>"""
+    with open(ARCHIVO_INDEX_HTML, "w", encoding="utf-8") as f:
+        f.write(pagina_html)
+    print(f"   [OK] Sitio web actualizado en '{ARCHIVO_INDEX_HTML}'.")
+
+# ---------------------------------------------------------------------------
+# 7. Punto de Entrada Principal
 # ---------------------------------------------------------------------------
 
 async def ejecutar_pipeline() -> None:
@@ -412,26 +553,50 @@ async def ejecutar_pipeline() -> None:
         http_options=types.HttpOptions(timeout=300_000)
     )
 
-    print(f"[1/3] Obteniendo noticias RSS para el episodio {FECHA_STR}...")
+    episodios = cargar_o_inicializar_episodios()
+    siguiente_num = max(ep["numero"] for ep in episodios) + 1
+
+    print(f"[1/4] Obteniendo noticias RSS para el Episodio {siguiente_num} ({FECHA_STR})...")
     noticias, titulos_usados = await obtener_titulares()
 
-    print("[2/3] Generando guion expresivo con Gemini API...")
-    guion = await generar_guion(client, noticias)
+    print("[2/4] Generando metadatos SEO y guion expresivo con Gemini API...")
+    contenido = await generar_contenido_episodio(client, noticias, siguiente_num)
+    guion = contenido["guion"]
     guardar_guion_texto(guion)
-    
+
     if titulos_usados:
         guardar_historico(titulos_usados)
 
     palabras = len(guion.split())
+    print(f"   Título: {contenido['titulo']}")
     print(f"   Guion redactado ({palabras} palabras).")
 
-    print("[3/3] Sintetizando audio expresivo (Gemini 3.8 Flash TTS)...")
+    print("[3/4] Sintetizando audio expresivo (Gemini 3.8 Flash TTS)...")
     data_buffer, nombre_archivo_raw = await generar_audio_expresivo(client, guion)
     with open(nombre_archivo_raw, "wb") as f:
         f.write(data_buffer)
 
-    mezclar_audio_final(nombre_archivo_raw, ARCHIVO_SALIDA_FINAL)
-    print(f"¡Proceso completado! Archivos '{ARCHIVO_SALIDA_FINAL}' y '{ARCHIVO_GUION}' generados.")
+    duracion_seg = mezclar_audio_final(nombre_archivo_raw, ARCHIVO_SALIDA_FINAL)
+
+    print("[4/4] Actualizando repositorio y canal RSS (feed.xml)...")
+    nuevo_episodio = {
+        "numero": siguiente_num,
+        "temporada": 1,
+        "titulo": contenido["titulo"],
+        "descripcion": contenido["descripcion"],
+        "archivo_mp3": ARCHIVO_SALIDA_FINAL,
+        "bytes": os.path.getsize(ARCHIVO_SALIDA_FINAL),
+        "duracion_seg": duracion_seg,
+        "pub_date": email.utils.format_datetime(datetime.now(timezone.utc)),
+        "guid": f"eduradar-ep-{siguiente_num}-{FECHA_STR}"
+    }
+    episodios.append(nuevo_episodio)
+
+    with open(ARCHIVO_EPISODIOS_DB, "w", encoding="utf-8") as f:
+        json.dump(episodios, f, ensure_ascii=False, indent=2)
+
+    generar_rss_y_web(episodios)
+    print(f"¡Proceso completado! Episodio {siguiente_num} publicado en {BASE_URL}/{ARCHIVO_FEED_XML}")
 
 if __name__ == "__main__":
     try:
