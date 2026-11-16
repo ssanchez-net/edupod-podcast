@@ -2,8 +2,8 @@ name: Generador Semanal de Podcast Edu Radar
 
 on:
   schedule:
-    # Se ejecuta todos los viernes a las 06:00 UTC (00:00 hora del centro de México)
-    - cron: '0 6 * * 5'
+    # Se ejecuta todos los martes (2) y viernes (5) a las 06:15 UTC (00:15 AM hora del centro de México)
+    - cron: '15 6 * * 2,5'
   workflow_dispatch:
 
 permissions:
