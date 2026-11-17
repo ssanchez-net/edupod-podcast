@@ -1,0 +1,83 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:atom="[http://www.w3.org/2005/Atom](http://www.w3.org/2005/Atom)" xmlns:itunes="[http://www.itunes.com/dtds/podcast-1.0.dtd](http://www.itunes.com/dtds/podcast-1.0.dtd)" version="2.0">
+  <channel>
+    <atom:link href="https://ssanchez-net.github.io/edupod-podcast/feed.xml" rel="self" type="application/rss+xml" />
+    <title>Edu Radar</title>
+    <link>https://ssanchez-net.github.io/edupod-podcast</link>
+    <language>es-mx</language>
+    <description>Tu radar semanal sobre el futuro de la educación. Cada martes y viernes, Sofía y Alejandro analizan las noticias más relevantes en tecnología educativa (EdTech), inteligencia artificial aplicada al aula, pedagogía digital e innovación académica en instituciones de todo el mundo. Un espacio ágil y directo para docentes, directivos y apasionados por transformar el aprendizaje.</description>
+    <itunes:author>Edumedios</itunes:author>
+    <itunes:summary>Tu radar semanal sobre el futuro de la educación. Cada martes y viernes, Sofía y Alejandro analizan las noticias más relevantes en tecnología educativa (EdTech), inteligencia artificial aplicada al aula, pedagogía digital e innovación académica en instituciones de todo el mundo. Un espacio ágil y directo para docentes, directivos y apasionados por transformar el aprendizaje.</itunes:summary>
+    <itunes:explicit>false</itunes:explicit>
+    <itunes:type>episodic</itunes:type>
+    <itunes:owner>
+      <itunes:name>Edumedios</itunes:name>
+      <itunes:email>contacto@edumedios.com</itunes:email>
+    </itunes:owner>
+    <itunes:image href="https://ssanchez-net.github.io/edupod-podcast/portada.jpg" />
+    <image>
+      <url>https://ssanchez-net.github.io/edupod-podcast/portada.jpg</url>
+      <title>Edu Radar</title>
+      <link>https://ssanchez-net.github.io/edupod-podcast</link>
+    </image>
+    <itunes:category text="Education">
+      <itunes:category text="Technology" />
+    </itunes:category>
+    <item>
+      <title>Ep. 2: Educación especial contra la rutina, ética en detectores de IA y victorias legales en universidades</title>
+      <description>En esta entrega de Edu Radar, Sofía y Alejandro analizan las noticias que están redefiniendo las aulas y los campus universitarios:
+• La trampa de la cotidianidad en la educación especial y el reto de romper el piloto automático pedagógico.
+• Por qué los detectores de inteligencia artificial representan un peligro ético y metodológico para docentes y alumnos.
+• Victorias judiciales clave: anulación de límites a visas estudiantiles y fondos de investigación protegidos.
+• Los obstáculos de equidad y dispersión geográfica en la educación comunitaria rural.
+
+Pregunta de debate: ¿Cómo podemos proteger el vínculo humano y empático frente al avance de la estandarización algorítmica? ¡Suscríbete en Spotify y Apple Podcasts y déjanos tus cinco estrellas!</description>
+      <itunes:summary>En esta entrega de Edu Radar, Sofía y Alejandro analizan las noticias que están redefiniendo las aulas y los campus universitarios:
+• La trampa de la cotidianidad en la educación especial y el reto de romper el piloto automático pedagógico.
+• Por qué los detectores de inteligencia artificial representan un peligro ético y metodológico para docentes y alumnos.
+• Victorias judiciales clave: anulación de límites a visas estudiantiles y fondos de investigación protegidos.
+• Los obstáculos de equidad y dispersión geográfica en la educación comunitaria rural.
+
+Pregunta de debate: ¿Cómo podemos proteger el vínculo humano y empático frente al avance de la estandarización algorítmica? ¡Suscríbete en Spotify y Apple Podcasts y déjanos tus cinco estrellas!</itunes:summary>
+      <pubDate>Tue, 17 Nov 2026 07:41:17 +0000</pubDate>
+      <guid isPermaLink="false">eduradar-ep-2-17112026</guid>
+      <enclosure url="https://ssanchez-net.github.io/edupod-podcast/episodio_ep17112026.mp3" length="10192365" type="audio/mpeg" />
+      <itunes:duration>424</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:season>1</itunes:season>
+      <itunes:episode>2</itunes:episode>
+      <itunes:image href="https://ssanchez-net.github.io/edupod-podcast/portada.jpg" />
+    </item>
+    <item>
+      <title>Ep. 1: El fin del ensayo tradicional, arte contemporáneo y el futuro del talento internacional</title>
+      <description>En este episodio de Edu Radar, Sofía y Alejandro analizan cómo la inteligencia artificial generativa está obligando a transformar las tareas escolares y el fin del ensayo tradicional para llevar a casa. Además, reflexionamos sobre el pensamiento crítico a través del arte contemporáneo, los retos de la educación cívica y la libertad de expresión en las aulas, y la iniciativa clave en Filadelfia para retener el talento universitario internacional.
+
+Temas clave de la emisión:
+• La evolución de la pedagogía frente a la IA generativa.
+• El arte y la provocación como herramientas de pensamiento crítico.
+• Educación cívica, democracia y libertad de cátedra.
+• Integración y retención de talento internacional en la educación superior.
+
+Frente a un mundo saturado de respuestas automatizadas, ¿qué práctica estás implementando hoy para estimular el pensamiento propio de tus estudiantes? ¡Suscríbete y compártelo!</description>
+      <itunes:summary>En este episodio de Edu Radar, Sofía y Alejandro analizan cómo la inteligencia artificial generativa está obligando a transformar las tareas escolares y el fin del ensayo tradicional para llevar a casa. Además, reflexionamos sobre el pensamiento crítico a través del arte contemporáneo, los retos de la educación cívica y la libertad de expresión en las aulas, y la iniciativa clave en Filadelfia para retener el talento universitario internacional.
+
+Temas clave de la emisión:
+• La evolución de la pedagogía frente a la IA generativa.
+• El arte y la provocación como herramientas de pensamiento crítico.
+• Educación cívica, democracia y libertad de cátedra.
+• Integración y retención de talento internacional en la educación superior.
+
+Frente a un mundo saturado de respuestas automatizadas, ¿qué práctica estás implementando hoy para estimular el pensamiento propio de tus estudiantes? ¡Suscríbete y compártelo!</itunes:summary>
+      <pubDate>Fri, 13 Nov 2026 06:15:00 +0000</pubDate>
+      <guid isPermaLink="false">eduradar-ep-1-13112026</guid>
+      <enclosure url="https://ssanchez-net.github.io/edupod-podcast/episodio_ep13112026.mp3" length="8934381" type="audio/mpeg" />
+      <itunes:duration>360</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:season>1</itunes:season>
+      <itunes:episode>1</itunes:episode>
+      <itunes:image href="https://ssanchez-net.github.io/edupod-podcast/portada.jpg" />
+    </item>
+  </channel>
+</rss>
