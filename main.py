@@ -446,8 +446,8 @@ def cargar_o_inicializar_episodios() -> list[dict]:
     return [episodio_1]
 
 def generar_rss_y_web(episodios: list[dict]) -> None:
-    ITUNES_NS = "[http://www.itunes.com/dtds/podcast-1.0.dtd](http://www.itunes.com/dtds/podcast-1.0.dtd)"
-    ATOM_NS = "[http://www.w3.org/2005/Atom](http://www.w3.org/2005/Atom)"
+    ITUNES_NS = "http://www.itunes.com/dtds/podcast-1.0.dtd"
+    ATOM_NS = "http://www.w3.org/2005/Atom"
     ET.register_namespace("itunes", ITUNES_NS)
     ET.register_namespace("atom", ATOM_NS)
 
