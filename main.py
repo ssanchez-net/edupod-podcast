@@ -32,7 +32,7 @@ PODCAST_DESCRIPCION = (
     "Un espacio ágil y directo para docentes, directivos y apasionados por transformar el aprendizaje."
 )
 PODCAST_AUTOR = "Edumedios"
-PODCAST_EMAIL = "contacto@edumedios.com"
+PODCAST_EMAIL = "ssanchez.net@gmail.com"
 PODCAST_IDIOMA = "es-mx"
 PODCAST_CATEGORIA = "Education"
 PODCAST_SUBCATEGORIA = "Technology"
