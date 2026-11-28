@@ -1,0 +1,161 @@
+<?xml version='1.0' encoding='utf-8'?>
+<rss xmlns:atom="http://www.w3.org/2005/Atom" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
+  <channel>
+    <atom:link href="https://ssanchez-net.github.io/edupod-podcast/feed.xml" rel="self" type="application/rss+xml" />
+    <title>Edu Radar</title>
+    <link>https://ssanchez-net.github.io/edupod-podcast</link>
+    <language>es-mx</language>
+    <description>Tu radar semanal sobre el futuro de la educación. Cada martes y viernes, Sofía y Alejandro analizan las noticias más relevantes en tecnología educativa (EdTech), inteligencia artificial aplicada al aula, pedagogía digital e innovación académica en instituciones de todo el mundo. Un espacio ágil y directo para docentes, directivos y apasionados por transformar el aprendizaje.</description>
+    <itunes:author>Edumedios</itunes:author>
+    <itunes:summary>Tu radar semanal sobre el futuro de la educación. Cada martes y viernes, Sofía y Alejandro analizan las noticias más relevantes en tecnología educativa (EdTech), inteligencia artificial aplicada al aula, pedagogía digital e innovación académica en instituciones de todo el mundo. Un espacio ágil y directo para docentes, directivos y apasionados por transformar el aprendizaje.</itunes:summary>
+    <itunes:explicit>false</itunes:explicit>
+    <itunes:type>episodic</itunes:type>
+    <itunes:owner>
+      <itunes:name>Edumedios</itunes:name>
+      <itunes:email>ssanchez.net@gmail.com</itunes:email>
+    </itunes:owner>
+    <itunes:image href="https://ssanchez-net.github.io/edupod-podcast/portada.jpg" />
+    <image>
+      <url>https://ssanchez-net.github.io/edupod-podcast/portada.jpg</url>
+      <title>Edu Radar</title>
+      <link>https://ssanchez-net.github.io/edupod-podcast</link>
+    </image>
+    <itunes:category text="Education">
+      <itunes:category text="Technology" />
+    </itunes:category>
+    <item>
+      <title>Ep. 5: Startups del TecPrize 2026, aprendizaje socioemocional y la brecha de la IA</title>
+      <description>Bienvenidos a un nuevo episodio de Edu Radar. Hoy analizamos las diez startups finalistas del TecPrize 2026 y cómo están transformando el futuro del trabajo frente a la automatización. Además, conversamos sobre la importancia de formar profesionales más humanos mediante el aprendizaje socioemocional, los retos del kínder en la educación temprana y qué sucede cuando la inteligencia artificial avanza más rápido que las escuelas con fondos prioritarios. 
+
+• Descubre las innovaciones del TecPrize 2026 impulsadas por el Tecnológico de Monterrey.
+• Analizamos el impacto del aprendizaje socioemocional en el rendimiento académico y la salud mental.
+• Debatimos sobre la brecha digital y tecnológica en las instituciones educativas.
+
+¿Crees que la inteligencia artificial está ampliando la brecha de desigualdad en las escuelas más vulnerables o puede convertirse en el gran ecualizador educativo? Déjanos tus comentarios y suscríbete para no perderte ninguna emisión.</description>
+      <itunes:summary>Bienvenidos a un nuevo episodio de Edu Radar. Hoy analizamos las diez startups finalistas del TecPrize 2026 y cómo están transformando el futuro del trabajo frente a la automatización. Además, conversamos sobre la importancia de formar profesionales más humanos mediante el aprendizaje socioemocional, los retos del kínder en la educación temprana y qué sucede cuando la inteligencia artificial avanza más rápido que las escuelas con fondos prioritarios. 
+
+• Descubre las innovaciones del TecPrize 2026 impulsadas por el Tecnológico de Monterrey.
+• Analizamos el impacto del aprendizaje socioemocional en el rendimiento académico y la salud mental.
+• Debatimos sobre la brecha digital y tecnológica en las instituciones educativas.
+
+¿Crees que la inteligencia artificial está ampliando la brecha de desigualdad en las escuelas más vulnerables o puede convertirse en el gran ecualizador educativo? Déjanos tus comentarios y suscríbete para no perderte ninguna emisión.</itunes:summary>
+      <pubDate>Fri, 27 Nov 2026 07:40:30 +0000</pubDate>
+      <guid isPermaLink="false">eduradar-ep-5-27112026</guid>
+      <enclosure url="https://ssanchez-net.github.io/edupod-podcast/episodio_ep27112026.mp3" length="7115949" type="audio/mpeg" />
+      <itunes:duration>296</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:season>1</itunes:season>
+      <itunes:episode>5</itunes:episode>
+      <itunes:image href="https://ssanchez-net.github.io/edupod-podcast/portada.jpg" />
+    </item>
+    <item>
+      <title>Ep. 4: ComplexHub, diversidad docente y los cambios clave en la educación superior que debes conocer hoy</title>
+      <description>Bienvenidos a un nuevo episodio de Edu Radar. En esta entrega analizamos las noticias más relevantes del mundo educativo y tecnológico. Hoy exploramos: 
+
+• ComplexHub: la nueva plataforma colaborativa de recursos educativos abiertos e inteligencia artificial en América Latina.
+• La urgencia de la autenticidad y representación docente en las aulas de educación básica.
+• Los movimientos estratégicos en las universidades de Arizona y las nuevas revisiones para profesores con plaza en Auburn.
+
+¿Crees que la inteligencia artificial y los recursos abiertos lograrán democratizar por completo el pensamiento complejo en nuestra región? Déjanos tu opinión en comentarios y suscríbete para no perderte ningún análisis de EdTech.</description>
+      <itunes:summary>Bienvenidos a un nuevo episodio de Edu Radar. En esta entrega analizamos las noticias más relevantes del mundo educativo y tecnológico. Hoy exploramos: 
+
+• ComplexHub: la nueva plataforma colaborativa de recursos educativos abiertos e inteligencia artificial en América Latina.
+• La urgencia de la autenticidad y representación docente en las aulas de educación básica.
+• Los movimientos estratégicos en las universidades de Arizona y las nuevas revisiones para profesores con plaza en Auburn.
+
+¿Crees que la inteligencia artificial y los recursos abiertos lograrán democratizar por completo el pensamiento complejo en nuestra región? Déjanos tu opinión en comentarios y suscríbete para no perderte ningún análisis de EdTech.</itunes:summary>
+      <pubDate>Tue, 24 Nov 2026 07:41:10 +0000</pubDate>
+      <guid isPermaLink="false">eduradar-ep-4-24112026</guid>
+      <enclosure url="https://ssanchez-net.github.io/edupod-podcast/episodio_ep24112026.mp3" length="7330221" type="audio/mpeg" />
+      <itunes:duration>305</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:season>1</itunes:season>
+      <itunes:episode>4</itunes:episode>
+      <itunes:image href="https://ssanchez-net.github.io/edupod-podcast/portada.jpg" />
+    </item>
+    <item>
+      <title>Ep. 3: Buscadores con IA obligatoria, errores insólitos en el aula y el valor de la conexión humana</title>
+      <description>¡Bienvenidos a Edu Radar! En este episodio analizamos los desafíos actuales entre innovación educativa y criterio pedagógico:
+• Google y la imposición de resúmenes de IA en las búsquedas escolares frente a la resistencia directiva.
+• Nuevas formas de evaluación: calificar los prompts del chat y el insólito error de la IA al sugerir Minecraft para enseñar círculos.
+• La defensa de aulas de baja tecnología para la alfabetización y los clubes de Pokémon como apoyo socioemocional.
+• La selfie como presencia digital y el litigio por becas de equidad racial en Kentucky.
+¿Estamos usando la tecnología para emancipar a los estudiantes o dejamos que las plataformas definan el aprendizaje?
+¡Suscríbete y acompáñanos en el debate!</description>
+      <itunes:summary>¡Bienvenidos a Edu Radar! En este episodio analizamos los desafíos actuales entre innovación educativa y criterio pedagógico:
+• Google y la imposición de resúmenes de IA en las búsquedas escolares frente a la resistencia directiva.
+• Nuevas formas de evaluación: calificar los prompts del chat y el insólito error de la IA al sugerir Minecraft para enseñar círculos.
+• La defensa de aulas de baja tecnología para la alfabetización y los clubes de Pokémon como apoyo socioemocional.
+• La selfie como presencia digital y el litigio por becas de equidad racial en Kentucky.
+¿Estamos usando la tecnología para emancipar a los estudiantes o dejamos que las plataformas definan el aprendizaje?
+¡Suscríbete y acompáñanos en el debate!</itunes:summary>
+      <pubDate>Fri, 20 Nov 2026 07:37:49 +0000</pubDate>
+      <guid isPermaLink="false">eduradar-ep-3-20112026</guid>
+      <enclosure url="https://ssanchez-net.github.io/edupod-podcast/episodio_ep20112026.mp3" length="10103085" type="audio/mpeg" />
+      <itunes:duration>420</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:season>1</itunes:season>
+      <itunes:episode>3</itunes:episode>
+      <itunes:image href="https://ssanchez-net.github.io/edupod-podcast/portada.jpg" />
+    </item>
+    <item>
+      <title>Ep. 2: Educación especial contra la rutina, ética en detectores de IA y victorias legales en universidades</title>
+      <description>En esta entrega de Edu Radar, Sofía y Alejandro analizan las noticias que están redefiniendo las aulas y los campus universitarios:
+• La trampa de la cotidianidad en la educación especial y el reto de romper el piloto automático pedagógico.
+• Por qué los detectores de inteligencia artificial representan un peligro ético y metodológico para docentes y alumnos.
+• Victorias judiciales clave: anulación de límites a visas estudiantiles y fondos de investigación protegidos.
+• Los obstáculos de equidad y dispersión geográfica en la educación comunitaria rural.
+
+Pregunta de debate: ¿Cómo podemos proteger el vínculo humano y empático frente al avance de la estandarización algorítmica? ¡Suscríbete en Spotify y Apple Podcasts y déjanos tus cinco estrellas!</description>
+      <itunes:summary>En esta entrega de Edu Radar, Sofía y Alejandro analizan las noticias que están redefiniendo las aulas y los campus universitarios:
+• La trampa de la cotidianidad en la educación especial y el reto de romper el piloto automático pedagógico.
+• Por qué los detectores de inteligencia artificial representan un peligro ético y metodológico para docentes y alumnos.
+• Victorias judiciales clave: anulación de límites a visas estudiantiles y fondos de investigación protegidos.
+• Los obstáculos de equidad y dispersión geográfica en la educación comunitaria rural.
+
+Pregunta de debate: ¿Cómo podemos proteger el vínculo humano y empático frente al avance de la estandarización algorítmica? ¡Suscríbete en Spotify y Apple Podcasts y déjanos tus cinco estrellas!</itunes:summary>
+      <pubDate>Tue, 17 Nov 2026 07:41:17 +0000</pubDate>
+      <guid isPermaLink="false">eduradar-ep-2-17112026</guid>
+      <enclosure url="https://ssanchez-net.github.io/edupod-podcast/episodio_ep17112026.mp3" length="10192365" type="audio/mpeg" />
+      <itunes:duration>424</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:season>1</itunes:season>
+      <itunes:episode>2</itunes:episode>
+      <itunes:image href="https://ssanchez-net.github.io/edupod-podcast/portada.jpg" />
+    </item>
+    <item>
+      <title>Ep. 1: El fin del ensayo tradicional, arte contemporáneo y el futuro del talento internacional</title>
+      <description>En este episodio de Edu Radar, Sofía y Alejandro analizan cómo la inteligencia artificial generativa está obligando a transformar las tareas escolares y el fin del ensayo tradicional para llevar a casa. Además, reflexionamos sobre el pensamiento crítico a través del arte contemporáneo, los retos de la educación cívica y la libertad de expresión en las aulas, y la iniciativa clave en Filadelfia para retener el talento universitario internacional.
+
+Temas clave de la emisión:
+• La evolución de la pedagogía frente a la IA generativa.
+• El arte y la provocación como herramientas de pensamiento crítico.
+• Educación cívica, democracia y libertad de cátedra.
+• Integración y retención de talento internacional en la educación superior.
+
+Frente a un mundo saturado de respuestas automatizadas, ¿qué práctica estás implementando hoy para estimular el pensamiento propio de tus estudiantes? ¡Suscríbete y compártelo!</description>
+      <itunes:summary>En este episodio de Edu Radar, Sofía y Alejandro analizan cómo la inteligencia artificial generativa está obligando a transformar las tareas escolares y el fin del ensayo tradicional para llevar a casa. Además, reflexionamos sobre el pensamiento crítico a través del arte contemporáneo, los retos de la educación cívica y la libertad de expresión en las aulas, y la iniciativa clave en Filadelfia para retener el talento universitario internacional.
+
+Temas clave de la emisión:
+• La evolución de la pedagogía frente a la IA generativa.
+• El arte y la provocación como herramientas de pensamiento crítico.
+• Educación cívica, democracia y libertad de cátedra.
+• Integración y retención de talento internacional en la educación superior.
+
+Frente a un mundo saturado de respuestas automatizadas, ¿qué práctica estás implementando hoy para estimular el pensamiento propio de tus estudiantes? ¡Suscríbete y compártelo!</itunes:summary>
+      <pubDate>Fri, 13 Nov 2026 06:15:00 +0000</pubDate>
+      <guid isPermaLink="false">eduradar-ep-1-13112026</guid>
+      <enclosure url="https://ssanchez-net.github.io/edupod-podcast/episodio_ep13112026.mp3" length="8934381" type="audio/mpeg" />
+      <itunes:duration>360</itunes:duration>
+      <itunes:explicit>false</itunes:explicit>
+      <itunes:episodeType>full</itunes:episodeType>
+      <itunes:season>1</itunes:season>
+      <itunes:episode>1</itunes:episode>
+      <itunes:image href="https://ssanchez-net.github.io/edupod-podcast/portada.jpg" />
+    </item>
+  </channel>
+</rss>
